@@ -39,7 +39,7 @@ export const SideBarInfo = [
         icon: bankIcon,
         label: "Bancos",
         links: [
-            {label: "Cuentas bancarias", href: "#"},
+            {label: "Cuentas bancarias", href: "/account"},
             {label: "Conciliaciones bancarias", href: "#"},
         ]
     },
@@ -49,7 +49,8 @@ export const SideBarInfo = [
         label: "Inventario",
         links: [
             {label: "Items de venta", href: "#"},
-            {label: "Inventario", href: "inventory"}
+            {label: "Inventario", href: "inventory"},
+            {label: "Bodega", href: "/cellars"},
         ]
     }
 ]
