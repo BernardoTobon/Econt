@@ -5,19 +5,19 @@ import { app } from "../../firebase/Index";
 
 function PasswordRecovery() {
   const [email, setEmail] = useState("");
-  const [mensaje, setMensaje] = useState("");
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMensaje("");
+    setMessage("");
     setError("");
     setLoading(true);
     try {
       const auth = getAuth(app);
       await sendPasswordResetEmail(auth, email);
-      setMensaje("Se ha enviado un correo para restablecer tu contraseña.");
+      setMessage("Se ha enviado un correo para restablecer tu contraseña.");
     } catch (err: any) {
       if (err.code === "auth/user-not-found") {
         setError("No existe una cuenta con ese correo electrónico.");
@@ -49,7 +49,7 @@ function PasswordRecovery() {
           className="w-full px-5 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg mb-4"
           autoComplete="email"
         />
-        {mensaje && <div className="mb-4 text-green-400 text-center text-sm w-full">{mensaje}</div>}
+        {message && <div className="mb-4 text-green-400 text-center text-sm w-full">{message}</div>}
         {error && <div className="mb-4 text-red-400 text-center text-sm w-full">{error}</div>}
         <button
           type="submit"
