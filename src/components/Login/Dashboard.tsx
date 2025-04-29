@@ -154,7 +154,7 @@ const Dashboard = () => {
   const totalExpenses = filteredExpenses.reduce((acc, g) => acc + g.amount, 0);
 
   return (
-    <div className="min-h-screen bg-white p-6">
+    <div className="min-h-screen bg-white p-6" style={{ paddingLeft: '6rem' }}>
       <h1 className="text-4xl font-bold text-green-800 mb-8 text-center tracking-widest">Dashboard</h1>
       <div className="flex flex-col md:flex-row gap-4 justify-center mb-8">
         <div className="flex flex-col gap-2">
