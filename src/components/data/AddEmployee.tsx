@@ -9,6 +9,7 @@ function AddEmployee({ onRegistered }: { onRegistered?: () => void }) {
     cedula: "",
     celular: "",
     email: "",
+    password: "",
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -26,22 +27,40 @@ function AddEmployee({ onRegistered }: { onRegistered?: () => void }) {
     setError("");
     setSuccess("");
     setLoading(true);
-    if (!form.fullName || !form.cedula || !form.celular || !form.email) {
+    if (!form.fullName || !form.cedula || !form.celular || !form.email || !form.password) {
       setError("Por favor completa todos los campos.");
       setLoading(false);
       return;
     }
     try {
+      // 1. Registrar en Firebase Auth primero para validar email único
+      const { getAuth, createUserWithEmailAndPassword } = await import("firebase/auth");
+      const auth = getAuth(app);
+      let userCredential;
+      try {
+        userCredential = await createUserWithEmailAndPassword(auth, form.email, form.password);
+      } catch (authError: any) {
+        if (authError.code === "auth/email-already-in-use") {
+          setError("El correo ya está registrado en el sistema.");
+        } else {
+          setError("Error creando acceso: " + authError.message);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // 2. Registrar en la colección employees
       const db = getFirestore(app);
       await addDoc(collection(db, "employees"), {
         fullName: form.fullName,
         cedula: form.cedula,
         celular: form.celular,
         email: form.email,
+        uid: userCredential.user.uid,
         createdAt: new Date(),
       });
       setSuccess("¡Empleado registrado exitosamente!");
-      setForm({ fullName: "", cedula: "", celular: "", email: "" });
+      setForm({ fullName: "", cedula: "", celular: "", email: "", password: "" });
       if (onRegistered) onRegistered();
     } catch (err) {
       setError("Error al registrar el empleado. Intenta de nuevo.");
@@ -112,6 +131,20 @@ function AddEmployee({ onRegistered }: { onRegistered?: () => void }) {
             onChange={handleChange}
             className="w-full px-5 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg text-center"
             autoComplete="off"
+          />
+        </div>
+        <div className="mb-6 w-full">
+          <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="password">
+            Contraseña
+          </label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            value={form.password}
+            onChange={handleChange}
+            className="w-full px-5 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg text-center"
+            autoComplete="new-password"
           />
         </div>
         {error && <div className="mb-4 text-red-400 text-center text-sm w-full">{error}</div>}
