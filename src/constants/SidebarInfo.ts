@@ -18,7 +18,7 @@ export const SideBarInfo = [
         icon: contactIcon,
         label: "CRM",
         links: [
-            {label: "Clientes", href: "addclient"},
+            {label: "Clientes", href: "/client-list"},
             {label: "Proveedores", href: "/supplier"},
             {label: "Empleados", href: "/addemployee"},
         ]
