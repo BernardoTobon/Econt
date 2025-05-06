@@ -20,7 +20,7 @@ const taxResponsabilities = [
 ];
 
 interface AddClientProps {
-  onRegistered?: () => void;
+  onRegistered?: (data: any) => void;
   initialData?: any;
   editMode?: boolean;
   onUpdate?: (data: any) => void;
@@ -128,7 +128,13 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
           celular: "",
         });
         setSearch("");
-        if (onRegistered) onRegistered();
+        if (onRegistered) onRegistered({
+          fullName: dataToSave.fullName,
+          idNumber: dataToSave.idNumber,
+          celular: dataToSave.celular,
+          address: dataToSave.address,
+          city: dataToSave.city,
+        });
       }
     } catch (err) {
       setError("Error al registrar. Intenta de nuevo.");

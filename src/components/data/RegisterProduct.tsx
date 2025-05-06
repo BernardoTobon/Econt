@@ -9,11 +9,16 @@ interface ProductoForm {
   stock: string;
 }
 
+interface RegisterProductProps {
+  onCloseModal?: () => void;
+  onProductRegistered?: (newProduct: any) => void;
+}
+
 import { getFirestore, collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import { app } from "../../firebase/Index";
 import { formatCurrencyCOP } from "../../utils/formatCurrency";
 
-const RegisterProduct: React.FC = () => {
+const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProductRegistered }) => {
   const [form, setForm] = useState<ProductoForm>({
     codigo: "",
     nombre: "",
@@ -53,16 +58,19 @@ const RegisterProduct: React.FC = () => {
         return;
       }
       const db = getFirestore(app);
-      await addDoc(collection(db, "products"), {
+      const newProduct = {
         codigo: form.codigo,
         nombre: form.nombre,
         valorUnitario: Number(form.valorUnitario),
         cantidad: Number(form.cantidad),
         stock: Number(form.stock),
         createdAt: new Date(),
-      });
+      };
+      await addDoc(collection(db, "products"), newProduct);
       setSuccess("¡Producto registrado exitosamente!");
       setForm({ codigo: "", nombre: "", valorUnitario: "", cantidad: "", stock: "" });
+      if (onProductRegistered) onProductRegistered(newProduct);
+      if (onCloseModal) onCloseModal();
     } catch (err) {
       setError("Error al registrar el producto. Intenta de nuevo.");
     }
