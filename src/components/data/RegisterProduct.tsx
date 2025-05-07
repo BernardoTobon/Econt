@@ -4,20 +4,27 @@ import React, { useState } from "react";
 interface ProductoForm {
   codigo: string;
   nombre: string;
-  valorUnitario: string;
+  valorUnitarioCompra: string;
+  valorUnitarioVenta: string;
   cantidad: string;
   stock: string;
+}
+
+interface RegisterProductProps {
+  onCloseModal?: () => void;
+  onProductRegistered?: (newProduct: any) => void;
 }
 
 import { getFirestore, collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import { app } from "../../firebase/Index";
 import { formatCurrencyCOP } from "../../utils/formatCurrency";
 
-const RegisterProduct: React.FC = () => {
+const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProductRegistered }) => {
   const [form, setForm] = useState<ProductoForm>({
     codigo: "",
     nombre: "",
-    valorUnitario: "",
+    valorUnitarioCompra: "",
+    valorUnitarioVenta: "",
     cantidad: "",
     stock: "",
   });
@@ -41,7 +48,7 @@ const RegisterProduct: React.FC = () => {
     e.preventDefault();
     setSuccess("");
     setError("");
-    if (!form.codigo || !form.nombre || !form.valorUnitario || !form.cantidad || !form.stock) {
+    if (!form.codigo || !form.nombre || !form.valorUnitarioCompra || !form.valorUnitarioVenta || !form.cantidad || !form.stock) {
       setError("Por favor completa todos los campos.");
       return;
     }
@@ -53,16 +60,20 @@ const RegisterProduct: React.FC = () => {
         return;
       }
       const db = getFirestore(app);
-      await addDoc(collection(db, "products"), {
+      const newProduct = {
         codigo: form.codigo,
         nombre: form.nombre,
-        valorUnitario: Number(form.valorUnitario),
+        valorUnitarioCompra: Number(form.valorUnitarioCompra),
+        valorUnitarioVenta: Number(form.valorUnitarioVenta),
         cantidad: Number(form.cantidad),
         stock: Number(form.stock),
         createdAt: new Date(),
-      });
+      };
+      await addDoc(collection(db, "products"), newProduct);
       setSuccess("¡Producto registrado exitosamente!");
-      setForm({ codigo: "", nombre: "", valorUnitario: "", cantidad: "", stock: "" });
+      setForm({ codigo: "", nombre: "", valorUnitarioCompra: "", valorUnitarioVenta: "", cantidad: "", stock: "" });
+      if (onProductRegistered) onProductRegistered(newProduct);
+      if (onCloseModal) onCloseModal();
     } catch (err) {
       setError("Error al registrar el producto. Intenta de nuevo.");
     }
@@ -108,18 +119,38 @@ const RegisterProduct: React.FC = () => {
         </div>
         <div className="mb-4 w-full">
           <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="valorUnitario">
-            Valor unitario
+            Valor unitario compra
           </label>
           <input
             type="text"
             id="valorUnitario"
             name="valorUnitario"
             inputMode="numeric"
-            value={formatCurrencyCOP(form.valorUnitario)}
+            value={formatCurrencyCOP(form.valorUnitarioCompra)}
             onChange={e => {
               // Solo números, sin decimales
               const raw = e.target.value.replace(/[^\d]/g, "");
-              setForm({ ...form, valorUnitario: raw });
+              setForm({ ...form, valorUnitarioCompra: raw });
+            }}
+            className="w-full px-8 py-3 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg text-center"
+            autoComplete="off"
+            min="0"
+          />
+        </div>
+        <div className="mb-4 w-full">
+          <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="valorUnitario">
+            Valor unitario venta
+          </label>
+          <input
+            type="text"
+            id="valorUnitario"
+            name="valorUnitario"
+            inputMode="numeric"
+            value={formatCurrencyCOP(form.valorUnitarioVenta)}
+            onChange={e => {
+              // Solo números, sin decimales
+              const raw = e.target.value.replace(/[^\d]/g, "");
+              setForm({ ...form, valorUnitarioVenta: raw });
             }}
             className="w-full px-8 py-3 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg text-center"
             autoComplete="off"

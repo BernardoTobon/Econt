@@ -18,7 +18,7 @@ export const SideBarInfo = [
         icon: contactIcon,
         label: "CRM",
         links: [
-            {label: "Clientes", href: "addclient"},
+            {label: "Clientes", href: "/client-list"},
             {label: "Proveedores", href: "/supplier"},
             {label: "Empleados", href: "/addemployee"},
         ]
@@ -28,7 +28,7 @@ export const SideBarInfo = [
         icon: incomeIcon,
         label: "Ingresos",
         links: [
-            {label: "Factura de ventas", href: "invoicelist"},
+            {label: "Factura de ventas", href: "/invoice"},
             {label: "Pagos recibidos", href:"#"},
             {label: "Cotizaciones", href:"#"},
             {label: "Resimiones", href:"#"}
@@ -49,7 +49,7 @@ export const SideBarInfo = [
         label: "Inventario",
         links: [
             {label: "Items de venta", href: "#"},
-            {label: "Inventario", href: "inventory"},
+            {label: "Inventario", href: "/inventory"},
             {label: "Bodega", href: "/cellars"},
         ]
     }

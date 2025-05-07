@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import Link from "next/link";
 import { getFirestore, collection, addDoc } from "firebase/firestore";
 import { app } from "../../firebase/Index";
 // @ts-ignore
@@ -19,7 +20,7 @@ const taxResponsabilities = [
 ];
 
 interface AddClientProps {
-  onRegistered?: () => void;
+  onRegistered?: (data: any) => void;
   initialData?: any;
   editMode?: boolean;
   onUpdate?: (data: any) => void;
@@ -127,7 +128,13 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
           celular: "",
         });
         setSearch("");
-        if (onRegistered) onRegistered();
+        if (onRegistered) onRegistered({
+          fullName: dataToSave.fullName,
+          idNumber: dataToSave.idNumber,
+          celular: dataToSave.celular,
+          address: dataToSave.address,
+          city: dataToSave.city,
+        });
       }
     } catch (err) {
       setError("Error al registrar. Intenta de nuevo.");
@@ -145,8 +152,18 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
           ? "flex items-start justify-center w-full bg-transparent"
           : "flex items-start justify-center px-2 sm:px-4 min-h-screen w-full bg-green-100"
       }
-      style={isModal ? { minHeight: 0, padding: 0 } : {}}
+      style={isModal ? { minHeight: 0, padding: 0, position: 'relative' } : { position: 'relative' }}
     >
+      {/* Botón para cerrar el modal si está en modo modal */}
+      {isModal && onCloseModal && (
+        <button
+          type="button"
+          onClick={onCloseModal}
+          className="absolute top-4 right-4 z-50 px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 via-green-400 to-green-300 text-green-950 font-bold hover:from-green-400 hover:to-green-500 transition text-sm shadow-lg border border-green-600"
+        >
+          Cerrar
+        </button>
+      )}
       <form
         onSubmit={handleSubmit}
         className={
