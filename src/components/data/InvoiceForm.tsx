@@ -185,57 +185,111 @@ export const InvoiceForm: React.FC = () => {
     }
   }, [searchProduct, allProducts]);
 
+  // Función para inicializar una fila de producto
+  const inicializarProducto = (): ProductInvoice => ({
+    id: "",
+    nombreDelProducto: "",
+    cantidad: 1,
+    precioDeVenta: 0,
+    iva: 19,
+    total: 0,
+  });
+
   const handleProductSelect = (index: number, product: any) => {
-    const nuevosProductos = [...productos];
-    nuevosProductos[index] = {
-      ...nuevosProductos[index],
-      id: product.codigo, // Usar el campo 'codigo' registrado por el cliente
+  console.log("handleProductSelect - Inicio", { index, product });
+  
+  // Asegurarse de que estamos actualizando el producto correcto según el índice del dropdown activo
+  const targetIndex = activeDropdown ? activeDropdown.index : index;
+  
+  setProductos((prevProductos) => {
+    const nuevosProductos = [...prevProductos];
+    
+    // Si el índice es mayor o igual a la longitud actual, agregar filas vacías hasta alcanzar el índice
+    while (nuevosProductos.length <= targetIndex) {
+      nuevosProductos.push({
+        id: "",
+        nombreDelProducto: "",
+        cantidad: 1,
+        precioDeVenta: 0,
+        iva: 19,
+        total: 0,
+      });
+    }
+    
+    // Actualizar la fila correspondiente
+    nuevosProductos[targetIndex] = {
+      ...nuevosProductos[targetIndex],
+      id: product.codigo, // Usar el campo 'codigo' del producto
       nombreDelProducto: product.nombre,
+      precioDeVenta: product.valorUnitarioVenta, // Traer el valor unitario
+      cantidad: nuevosProductos[targetIndex].cantidad || 1, // Conservar la cantidad o usar valor por defecto
+      iva: nuevosProductos[targetIndex].iva || 19, // Conservar el IVA o usar valor por defecto
     };
-    setProductos(nuevosProductos);
-    setSearchProduct("");
-    setActiveDropdown(null);
-  };
+    
+    // Recalcular el total del producto
+    nuevosProductos[targetIndex].total = nuevosProductos[targetIndex].cantidad * nuevosProductos[targetIndex].precioDeVenta;
+    
+    console.log("handleProductSelect - Después de actualizar", nuevosProductos);
+    return nuevosProductos;
+  });
+  
+  // Limpiar búsqueda y dropdown
+  setSearchProduct("");
+  setActiveDropdown(null);
+  console.log("handleProductSelect - Fin");
+};
 
-  const handleProductoInputChange = (
-    index: number,
-    field: string,
-    value: string
-  ) => {
-    const nuevosProductos = [...productos];
+  const handleProductoInputChange = (index: number, field: string, value: string) => {
+  console.log("handleProductoInputChange - Inicio", { index, field, value });
+  
+  // Actualizar el producto correspondiente
+  setProductos((prevProductos) => {
+    const nuevosProductos = [...prevProductos];
+    
+    // Asegurar que la fila existe antes de modificarla
+    if (index >= nuevosProductos.length) {
+      console.error("Índice fuera de rango", { index, nuevosProductos });
+      return prevProductos; // No modificar si el índice es inválido
+    }
+    
     nuevosProductos[index] = {
       ...nuevosProductos[index],
-      [field]: value,
+      [field]: field === "cantidad" || field === "precioDeVenta" || field === "iva" ? Number(value) : value,
     };
-    setProductos(nuevosProductos);
+    
+    // Recalcular el total del producto
+    if (field === "cantidad" || field === "precioDeVenta") {
+      nuevosProductos[index].total = nuevosProductos[index].cantidad * nuevosProductos[index].precioDeVenta || 0;
+    }
+    
+    return nuevosProductos;
+  });
+  
+  // Solo actualizar la búsqueda y mostrar el dropdown para los campos de código y nombre
+  if (field === "id" || field === "nombreDelProducto") {
     setSearchProduct(value);
-    setShowProductDropdown(true);
-  };
+    setActiveDropdown({ index, field: field as "id" | "nombreDelProducto" });
+  }
+  
+  console.log("handleProductoInputChange - Fin");
+};
 
-  const handleProductoInputFocus = (
-    index: number,
-    field: "id" | "nombreDelProducto"
-  ) => {
-    setActiveDropdown({ index, field });
-    setSearchProduct(
-      field === "id" ? productos[index].id : productos[index].nombreDelProducto
-    );
-  };
+  const handleProductoInputFocus = (index: number, field: "id" | "nombreDelProducto") => {
+  // Obtener el valor actual para usarlo como búsqueda inicial
+  const currentValue = productos[index] ? 
+    (field === "id" ? productos[index].id : productos[index].nombreDelProducto) : 
+    "";
+  
+  setActiveDropdown({ index, field });
+  setSearchProduct(currentValue);
+};
 
-  const handleProductoInputBlur = (
-    index: number,
-    field: "id" | "nombreDelProducto"
-  ) => {
-    setTimeout(() => {
-      if (
-        activeDropdown &&
-        activeDropdown.index === index &&
-        activeDropdown.field === field
-      ) {
-        setActiveDropdown(null);
-      }
-    }, 200); // Retraso para permitir seleccionar un elemento del dropdown
-  };
+  const handleProductoInputBlur = () => {
+  // Usar un setTimeout para permitir que el clic en el dropdown se procese antes de cerrarlo
+  setTimeout(() => {
+    setActiveDropdown(null);
+  }, 200);
+};
 
   // Estado para totales y otros campos
   const [totalIVA, setTotalIVA] = useState(0);
@@ -404,23 +458,21 @@ const generatePdfAndDownload = async () => {
     };
     // Calcular total del producto
     nuevosProductos[index].total =
-      nuevosProductos[index].cantidad * nuevosProductos[index].precioDeVenta;
+      nuevosProductos[index].cantidad * nuevosProductos[index].precioDeVenta || 0;
     setProductos(nuevosProductos);
   };
 
   // Función para agregar un producto
   const agregarProducto = () => {
-    setProductos([
-      ...productos,
-      {
-        id: "",
-        nombreDelProducto: "",
-        cantidad: 1,
-        precioDeVenta: 0,
-        iva: 19,
-        total: 0,
-      },
-    ]);
+    console.log("agregarProducto - Inicio");
+    debugger; // Punto de depuración para verificar el estado antes de agregar una fila
+    setProductos((prevProductos) => {
+      const nuevosProductos = [...prevProductos, inicializarProducto()];
+      console.log("agregarProducto - Después de agregar", nuevosProductos);
+      return nuevosProductos;
+    });
+    debugger; // Punto de depuración para verificar el estado después de agregar una fila
+    console.log("agregarProducto - Fin");
   };
 
   // Función para eliminar un producto
@@ -635,39 +687,37 @@ const generatePdfAndDownload = async () => {
               <tr key={index}>
                 <td className="border px-1 py-1 text-center">{index + 1}</td>
                 <td className="border px-1 py-1 relative">
-                  <input
-                    className="w-full border rounded px-1 py-0.5"
-                    value={producto.id}
-                    onChange={(e) =>
-                      handleProductoInputChange(index, "id", e.target.value)
-                    }
-                    onFocus={() => handleProductoInputFocus(index, "id")}
-                    onBlur={() => handleProductoInputBlur(index, "id")}
-                    placeholder="Código"
-                  />
-                  {activeDropdown &&
-                    activeDropdown.index === index &&
-                    activeDropdown.field === "id" && (
-                      <ul className="absolute z-10 bg-white border border-gray-300 rounded w-full max-h-40 overflow-y-auto">
-                        {filteredProducts.map((product, index) => (
-                          <li
-                            key={`product-${product.id}-${index}`}
-                            className="p-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={() => handleProductSelect(index, product)}
-                          >
-                            {product.codigo}
-                          </li>
-                        ))}
-                        <li
-                          key="add-product"
-                          className="p-2 text-blue-500 hover:underline cursor-pointer"
-                          onClick={handleAddProductClick}
-                        >
-                          Crear nuevo producto
-                        </li>
-                      </ul>
-                    )}
-                </td>
+  <input
+    className="w-full border rounded px-1 py-0.5"
+    value={producto.id}
+    onChange={(e) => handleProductoInputChange(index, "id", e.target.value)}
+    onFocus={() => handleProductoInputFocus(index, "id")}
+    onBlur={() => handleProductoInputBlur()}
+    placeholder="Código"
+  />
+  {activeDropdown && 
+   activeDropdown.index === index && 
+   activeDropdown.field === "id" && (
+    <ul className="absolute z-10 bg-white border border-gray-300 rounded w-full max-h-40 overflow-y-auto">
+      {filteredProducts.map((product, productIndex) => (
+        <li
+          key={`product-code-${product.id}-${productIndex}`}
+          className="p-2 hover:bg-gray-100 cursor-pointer"
+          onClick={() => handleProductSelect(index, product)}
+        >
+          {product.codigo} - {product.nombre}
+        </li>
+      ))}
+      <li
+        key="add-product"
+        className="p-2 text-blue-500 hover:underline cursor-pointer"
+        onClick={handleAddProductClick}
+      >
+        Crear nuevo producto
+      </li>
+    </ul>
+  )}
+</td>
                 <td className="border px-1 py-1 relative">
                   <input
                     className="w-full border rounded px-1 py-0.5"
@@ -682,9 +732,7 @@ const generatePdfAndDownload = async () => {
                     onFocus={() =>
                       handleProductoInputFocus(index, "nombreDelProducto")
                     }
-                    onBlur={() =>
-                      handleProductoInputBlur(index, "nombreDelProducto")
-                    }
+                    onBlur={() => handleProductoInputBlur()}
                     placeholder="Descripción"
                   />
                   {activeDropdown &&
@@ -742,7 +790,7 @@ const generatePdfAndDownload = async () => {
                   />
                 </td>
                 <td className="border px-1 py-1 text-right">
-                  ${producto.total.toLocaleString("es-CO")}
+                  {producto.total?.toLocaleString("es-CO", { style: "currency", currency: "COP" }) || "$0"}
                 </td>
                 <td className="border px-1 py-1 text-center">
                   <button
@@ -777,18 +825,21 @@ const generatePdfAndDownload = async () => {
         {/* TOTALES Y OTROS CAMPOS */}
         <div className="flex flex-col md:flex-row justify-between gap-4 mt-4">
           <div className="w-full md:w-1/2 border border-gray-300 p-4 text-sm mb-4 md:mb-0">
+          <label className="font-bold">Referencia de Pago</label>
             <input
               className="border p-2 rounded w-full mb-2"
               placeholder="Referencia de Pago"
               value={referenciaPago}
               onChange={(e) => setReferenciaPago(e.target.value)}
             />
+            <label className="font-bold">Guía</label>
             <input
               className="border p-2 rounded w-full mb-2"
               placeholder="Guía"
               value={guia}
               onChange={(e) => setGuia(e.target.value)}
             />
+            <label className="font-bold">Observaciones</label>
             <textarea
               className="border p-2 rounded w-full"
               placeholder="Observaciones"
