@@ -89,6 +89,23 @@ const Dashboard = () => {
       },
     ],
   };
+
+  const salesAndExpensesChart = {
+    labels: filteredSales.map((v) => v.date),
+    datasets: [
+      {
+        label: "Ventas ($)",
+        data: filteredSales.map((v) => v.amount),
+        backgroundColor: "#22d3ee",
+      },
+      {
+        label: "Costos y Gastos ($)",
+        data: filteredExpenses.map((g) => g.amount),
+        backgroundColor: "#f87171",
+      },
+    ],
+  };
+
   const purchasesChart = {
     labels: filteredPurchases.map((c) => c.date),
     datasets: [
@@ -177,32 +194,49 @@ const Dashboard = () => {
         </div>
       </div>
       {/* Totales */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-green-100 rounded-xl p-6 flex flex-col items-center shadow border border-green-200">
           <span className="text-green-700 font-semibold text-lg mb-1">Total Ventas</span>
           <span className="text-2xl font-bold text-green-800">${totalSales.toLocaleString()}</span>
         </div>
-        <div className="bg-blue-100 rounded-xl p-6 flex flex-col items-center shadow border border-blue-200">
-          <span className="text-blue-700 font-semibold text-lg mb-1">Total Compras</span>
-          <span className="text-2xl font-bold text-blue-800">${totalPurchases.toLocaleString()}</span>
-        </div>
         <div className="bg-red-100 rounded-xl p-6 flex flex-col items-center shadow border border-red-200">
-          <span className="text-red-700 font-semibold text-lg mb-1">Total Gastos</span>
+          <span className="text-red-700 font-semibold text-lg mb-1">Total Costos y Gastos</span>
           <span className="text-2xl font-bold text-red-800">${totalExpenses.toLocaleString()}</span>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-8">
         <div className="bg-white rounded-xl p-6 shadow-lg border border-green-100">
           <h2 className="text-xl font-bold text-green-700 mb-4">Ventas</h2>
-          <Bar data={salesChart} options={{ responsive: true, plugins: { legend: { display: false } }, backgroundColor: '#fff' }} />
+          <Bar
+            data={salesChart}
+            options={{
+              responsive: true,
+              plugins: { legend: { display: false } },
+              backgroundColor: "#fff",
+            }}
+          />
         </div>
         <div className="bg-white rounded-xl p-6 shadow-lg border border-green-100">
-          <h2 className="text-xl font-bold text-green-700 mb-4">Compras</h2>
-          <Bar data={purchasesChart} options={{ responsive: true, plugins: { legend: { display: false } }, backgroundColor: '#fff' }} />
+          <h2 className="text-xl font-bold text-green-700 mb-4">Costos y Gastos</h2>
+          <Line
+            data={expensesChart}
+            options={{
+              responsive: true,
+              plugins: { legend: { display: false } },
+              backgroundColor: "#fff",
+            }}
+          />
         </div>
-        <div className="bg-white rounded-xl p-6 shadow-lg border border-green-100">
-          <h2 className="text-xl font-bold text-green-700 mb-4">Gastos</h2>
-          <Line data={expensesChart} options={{ responsive: true, plugins: { legend: { display: false } }, backgroundColor: '#fff' }} />
+        <div className="bg-white rounded-xl p-6 shadow-lg border border-green-100 col-span-2">
+          <h2 className="text-xl font-bold text-green-700 mb-4">Ventas vs Costos y Gastos</h2>
+          <Bar
+            data={salesAndExpensesChart}
+            options={{
+              responsive: true,
+              plugins: { legend: { display: true } },
+              backgroundColor: "#fff",
+            }}
+          />
         </div>
         <div className="bg-white rounded-xl p-6 shadow-lg border border-green-100 col-span-1 md:col-span-2 xl:col-span-1">
           <h2 className="text-xl font-bold text-green-700 mb-4">Más Vendidos</h2>
