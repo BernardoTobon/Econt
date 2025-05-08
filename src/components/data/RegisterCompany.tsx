@@ -122,7 +122,7 @@ const RegisterCompany: React.FC = () => {
                   key={item.departamento + "-" + item.municipio}
                   className="px-5 py-2 cursor-pointer hover:bg-green-100 text-green-800"
                   onMouseDown={() => {
-                    setForm({ ...form, city: item.municipio });
+                    setForm({ ...form, city: `${item.departamento} - ${item.municipio}` });
                     setSearch(`${item.departamento} - ${item.municipio}`);
                     setShowDropdown(false);
                   }}
