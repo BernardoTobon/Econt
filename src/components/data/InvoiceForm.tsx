@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import { db } from "../../firebase/Index";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
 import AddClient from "./AddClient";
 import RegisterProduct from "./RegisterProduct";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { formatCurrencyToWords } from "../../utils/formatCurrency";
 
 // Estructura de producto para la factura
 interface ProductInvoice {
@@ -18,8 +19,26 @@ interface ProductInvoice {
   total: number;
 }
 
+interface CompanyData {
+  companyName: string;
+  nit: string;
+  address: string;
+  city: string;
+  email: string;
+  phone: string;
+}
+
 // Estado para los datos del cliente
 export const InvoiceForm: React.FC = () => {
+  const [companyData, setCompanyData] = useState<CompanyData>({
+    companyName: "",
+    nit: "",
+    address: "",
+    city: "",
+    email: "",
+    phone: "",
+  });
+
   const [cliente, setCliente] = useState({
     razonSocialONombreCompleto: "",
     numeroDeIdentificacion: "",
@@ -41,6 +60,38 @@ export const InvoiceForm: React.FC = () => {
   const closeAddClientModal = () => {
     setShowAddClientModal(false);
   };
+
+  // Cargar datos de la empresa
+  useEffect(() => {
+    const fetchCompanyData = async () => {
+      try {
+        // Asumiendo que solo tienes un documento en la colección company
+        // Si tienes múltiples empresas, necesitarás un ID específico
+        const companyCollection = collection(db, "company");
+        const querySnapshot = await getDocs(companyCollection);
+
+        if (!querySnapshot.empty) {
+          // Tomar el primer documento de la colección
+          const companyDoc = querySnapshot.docs[0];
+          const data = companyDoc.data() as CompanyData;
+
+          setCompanyData({
+            companyName: data.companyName || "SKY MOTION S.A.S", // Valores por defecto en caso de que no existan
+            nit: data.nit || "901.119.460-6",
+            address: data.address || "CRA 48 #17A SUR - 47 LC 101 ED. PORTUGAL",
+            city: data.city || "Medellín - Colombia",
+            email: data.email || "skymotion@skymotion.com.co",
+            phone: data.phone || "(571) 3562097",
+          });
+        }
+      } catch (error) {
+        console.error("Error al obtener datos de la empresa:", error);
+        // Mantener los datos por defecto en caso de error
+      }
+    };
+
+    fetchCompanyData();
+  }, []);
 
   const handleClientCreated = (newClient: any) => {
     setCliente({
@@ -196,100 +247,119 @@ export const InvoiceForm: React.FC = () => {
   });
 
   const handleProductSelect = (index: number, product: any) => {
-  console.log("handleProductSelect - Inicio", { index, product });
-  
-  // Asegurarse de que estamos actualizando el producto correcto según el índice del dropdown activo
-  const targetIndex = activeDropdown ? activeDropdown.index : index;
-  
-  setProductos((prevProductos) => {
-    const nuevosProductos = [...prevProductos];
-    
-    // Si el índice es mayor o igual a la longitud actual, agregar filas vacías hasta alcanzar el índice
-    while (nuevosProductos.length <= targetIndex) {
-      nuevosProductos.push({
-        id: "",
-        nombreDelProducto: "",
-        cantidad: 1,
-        precioDeVenta: 0,
-        iva: 19,
-        total: 0,
-      });
-    }
-    
-    // Actualizar la fila correspondiente
-    nuevosProductos[targetIndex] = {
-      ...nuevosProductos[targetIndex],
-      id: product.codigo, // Usar el campo 'codigo' del producto
-      nombreDelProducto: product.nombre,
-      precioDeVenta: product.valorUnitarioVenta, // Traer el valor unitario
-      cantidad: nuevosProductos[targetIndex].cantidad || 1, // Conservar la cantidad o usar valor por defecto
-      iva: nuevosProductos[targetIndex].iva || 19, // Conservar el IVA o usar valor por defecto
-    };
-    
-    // Recalcular el total del producto
-    nuevosProductos[targetIndex].total = nuevosProductos[targetIndex].cantidad * nuevosProductos[targetIndex].precioDeVenta;
-    
-    console.log("handleProductSelect - Después de actualizar", nuevosProductos);
-    return nuevosProductos;
-  });
-  
-  // Limpiar búsqueda y dropdown
-  setSearchProduct("");
-  setActiveDropdown(null);
-  console.log("handleProductSelect - Fin");
-};
+    console.log("handleProductSelect - Inicio", { index, product });
 
-  const handleProductoInputChange = (index: number, field: string, value: string) => {
-  console.log("handleProductoInputChange - Inicio", { index, field, value });
-  
-  // Actualizar el producto correspondiente
-  setProductos((prevProductos) => {
-    const nuevosProductos = [...prevProductos];
-    
-    // Asegurar que la fila existe antes de modificarla
-    if (index >= nuevosProductos.length) {
-      console.error("Índice fuera de rango", { index, nuevosProductos });
-      return prevProductos; // No modificar si el índice es inválido
-    }
-    
-    nuevosProductos[index] = {
-      ...nuevosProductos[index],
-      [field]: field === "cantidad" || field === "precioDeVenta" || field === "iva" ? Number(value) : value,
-    };
-    
-    // Recalcular el total del producto
-    if (field === "cantidad" || field === "precioDeVenta") {
-      nuevosProductos[index].total = nuevosProductos[index].cantidad * nuevosProductos[index].precioDeVenta || 0;
-    }
-    
-    return nuevosProductos;
-  });
-  
-  // Solo actualizar la búsqueda y mostrar el dropdown para los campos de código y nombre
-  if (field === "id" || field === "nombreDelProducto") {
-    setSearchProduct(value);
-    setActiveDropdown({ index, field: field as "id" | "nombreDelProducto" });
-  }
-  
-  console.log("handleProductoInputChange - Fin");
-};
+    // Asegurarse de que estamos actualizando el producto correcto según el índice del dropdown activo
+    const targetIndex = activeDropdown ? activeDropdown.index : index;
 
-  const handleProductoInputFocus = (index: number, field: "id" | "nombreDelProducto") => {
-  // Obtener el valor actual para usarlo como búsqueda inicial
-  const currentValue = productos[index] ? 
-    (field === "id" ? productos[index].id : productos[index].nombreDelProducto) : 
-    "";
-  
-  setActiveDropdown({ index, field });
-  setSearchProduct(currentValue);
-};
+    setProductos((prevProductos) => {
+      const nuevosProductos = [...prevProductos];
+
+      // Si el índice es mayor o igual a la longitud actual, agregar filas vacías hasta alcanzar el índice
+      while (nuevosProductos.length <= targetIndex) {
+        nuevosProductos.push({
+          id: "",
+          nombreDelProducto: "",
+          cantidad: 1,
+          precioDeVenta: 0,
+          iva: 19,
+          total: 0,
+        });
+      }
+
+      // Actualizar la fila correspondiente
+      nuevosProductos[targetIndex] = {
+        ...nuevosProductos[targetIndex],
+        id: product.codigo, // Usar el campo 'codigo' del producto
+        nombreDelProducto: product.nombre,
+        precioDeVenta: product.valorUnitarioVenta, // Traer el valor unitario
+        cantidad: nuevosProductos[targetIndex].cantidad || 1, // Conservar la cantidad o usar valor por defecto
+        iva: nuevosProductos[targetIndex].iva || 19, // Conservar el IVA o usar valor por defecto
+      };
+
+      // Recalcular el total del producto
+      nuevosProductos[targetIndex].total =
+        nuevosProductos[targetIndex].cantidad *
+        nuevosProductos[targetIndex].precioDeVenta;
+
+      console.log(
+        "handleProductSelect - Después de actualizar",
+        nuevosProductos
+      );
+      return nuevosProductos;
+    });
+
+    // Limpiar búsqueda y dropdown
+    setSearchProduct("");
+    setActiveDropdown(null);
+    console.log("handleProductSelect - Fin");
+  };
+
+  const handleProductoInputChange = (
+    index: number,
+    field: string,
+    value: string
+  ) => {
+    console.log("handleProductoInputChange - Inicio", { index, field, value });
+
+    // Actualizar el producto correspondiente
+    setProductos((prevProductos) => {
+      const nuevosProductos = [...prevProductos];
+
+      // Asegurar que la fila existe antes de modificarla
+      if (index >= nuevosProductos.length) {
+        console.error("Índice fuera de rango", { index, nuevosProductos });
+        return prevProductos; // No modificar si el índice es inválido
+      }
+
+      nuevosProductos[index] = {
+        ...nuevosProductos[index],
+        [field]:
+          field === "cantidad" || field === "precioDeVenta" || field === "iva"
+            ? Number(value)
+            : value,
+      };
+
+      // Recalcular el total del producto
+      if (field === "cantidad" || field === "precioDeVenta") {
+        nuevosProductos[index].total =
+          nuevosProductos[index].cantidad *
+            nuevosProductos[index].precioDeVenta || 0;
+      }
+
+      return nuevosProductos;
+    });
+
+    // Solo actualizar la búsqueda y mostrar el dropdown para los campos de código y nombre
+    if (field === "id" || field === "nombreDelProducto") {
+      setSearchProduct(value);
+      setActiveDropdown({ index, field: field as "id" | "nombreDelProducto" });
+    }
+
+    console.log("handleProductoInputChange - Fin");
+  };
+
+  const handleProductoInputFocus = (
+    index: number,
+    field: "id" | "nombreDelProducto"
+  ) => {
+    // Obtener el valor actual para usarlo como búsqueda inicial
+    const currentValue = productos[index]
+      ? field === "id"
+        ? productos[index].id
+        : productos[index].nombreDelProducto
+      : "";
+
+    setActiveDropdown({ index, field });
+    setSearchProduct(currentValue);
+  };
 
   const handleProductoInputBlur = () => {
-  // Usar un setTimeout para permitir que el clic en el dropdown se procese antes de cerrarlo
-  setTimeout(() => {
-    setActiveDropdown(null);
-  }, 200);
-};
+    // Usar un setTimeout para permitir que el clic en el dropdown se procese antes de cerrarlo
+    setTimeout(() => {
+      setActiveDropdown(null);
+    }, 200);
+  };
 
   // Estado para totales y otros campos
   const [totalIVA, setTotalIVA] = useState(0);
@@ -303,139 +373,226 @@ export const InvoiceForm: React.FC = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
 
-const cleanOklchColors = (element: HTMLElement) => {
-  const elements = element.querySelectorAll("*");
-  elements.forEach((el) => {
-    const computedStyle = window.getComputedStyle(el);
-    ["color", "backgroundColor", "borderColor"].forEach((property) => {
-      const value = computedStyle.getPropertyValue(property);
-      if (value.includes("oklch")) {
-        (el as HTMLElement).style.setProperty(property, "#000000", "important");
-      }
-    });
-  });
-};
-
-const applyGlobalStyleFix = () => {
-  const style = document.createElement("style");
-  style.id = "global-oklch-fix";
-  style.innerHTML = `
+  const applyGlobalStyleFix = () => {
+    const style = document.createElement("style");
+    style.id = "global-oklch-fix";
+    style.innerHTML = `
     * {
       color: initial !important;
       background-color: initial !important;
       border-color: initial !important;
     }
   `;
-  document.head.appendChild(style);
-};
+    document.head.appendChild(style);
+  };
 
-const removeGlobalStyleFix = () => {
-  const style = document.getElementById("global-oklch-fix");
-  if (style) {
-    document.head.removeChild(style);
-  }
-};
-
-const fixInputStyles = (element: HTMLElement) => {
-  const inputs = element.querySelectorAll("input, textarea, select");
-  inputs.forEach((input) => {
-    const computedStyle = window.getComputedStyle(input);
-    const stylesToCopy = [
-      "boxSizing",
-      "height",
-      "padding",
-      "border",
-      "font",
-      "lineHeight",
-      "letterSpacing",
-      "textAlign",
-      "color",
-      "backgroundColor",
-      "borderRadius",
-    ];
-
-    stylesToCopy.forEach((style) => {
-      (input as HTMLElement).style.setProperty(
-        style,
-        computedStyle.getPropertyValue(style),
-        "important"
-      );
-    });
-  });
-};
-
-const replaceInputsWithStaticContent = (element: HTMLElement) => {
-  const inputs = element.querySelectorAll("input, textarea, select");
-  inputs.forEach((input) => {
-    const parent = input.parentElement;
-    if (parent) {
-      const staticElement = document.createElement("div");
-      staticElement.textContent = (input as HTMLInputElement).value || "";
-      staticElement.style.cssText = window.getComputedStyle(input).cssText;
-      staticElement.style.whiteSpace = "pre-wrap"; // Asegurar que los saltos de línea se respeten
-      parent.replaceChild(staticElement, input);
+  const removeGlobalStyleFix = () => {
+    const style = document.getElementById("global-oklch-fix");
+    if (style) {
+      document.head.removeChild(style);
     }
-  });
-};
+  };
 
-const generatePdfAndDownload = async () => {
-  const invoiceElement = document.querySelector(".max-w-4xl") as HTMLElement;
-  if (!invoiceElement) {
-    alert("No se encontró la factura para exportar.");
-    return;
-  }
+  const replaceInputsWithStaticContent = (element: HTMLElement) => {
+    const inputs = element.querySelectorAll("input, textarea, select");
+    inputs.forEach((input) => {
+      const parent = input.parentElement;
+      if (parent) {
+        const staticElement = document.createElement("div");
+        staticElement.textContent = (input as HTMLInputElement).value || "";
+        staticElement.style.cssText = window.getComputedStyle(input).cssText;
+        staticElement.style.whiteSpace = "pre-wrap"; // Asegurar que los saltos de línea se respeten
+        parent.replaceChild(staticElement, input);
+      }
+    });
+  };
 
-  try {
-    // Aplicar estilo global para evitar colores no compatibles
-    applyGlobalStyleFix();
+  const copyComputedStyles = (source: HTMLElement, target: HTMLElement) => {
+    const computed = window.getComputedStyle(source);
+    for (const prop of computed) {
+      target.style.setProperty(prop, computed.getPropertyValue(prop));
+    }
 
-    // Clonar el nodo original para evitar modificar el DOM real
-    const clone = invoiceElement.cloneNode(true) as HTMLElement;
+    const sourceChildren = source.children;
+    const targetChildren = target.children;
+    for (let i = 0; i < sourceChildren.length; i++) {
+      copyComputedStyles(
+        sourceChildren[i] as HTMLElement,
+        targetChildren[i] as HTMLElement
+      );
+    }
+  };
 
-    // Reemplazar inputs con contenido estático en el clon
-    replaceInputsWithStaticContent(clone);
-
-    // Agregar el clon a un contenedor oculto en el DOM
-    const hiddenContainer = document.createElement("div");
-    hiddenContainer.style.position = "fixed";
-    hiddenContainer.style.top = "0";
-    hiddenContainer.style.left = "0";
-    hiddenContainer.style.width = "100vw";
-    hiddenContainer.style.height = "100vh";
-    hiddenContainer.style.overflow = "hidden";
-    hiddenContainer.style.opacity = "0";
-    hiddenContainer.style.zIndex = "-1";
-    hiddenContainer.appendChild(clone);
-    document.body.appendChild(hiddenContainer);
-
-    await new Promise((res) => setTimeout(res, 300)); // Asegurar renderizado
-
-    const canvas = await html2canvas(clone, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: "#ffffff",
+  const hideInteractiveElements = (element: HTMLElement) => {
+    // Hacer invisibles los botones de agregar producto y exportar a PDF
+    const buttons = element.querySelectorAll("button");
+    buttons.forEach((button) => {
+      if (
+        button.textContent?.includes("Agregar producto") ||
+        button.textContent?.includes("Exportar a PDF")
+      ) {
+        (button as HTMLElement).style.visibility = "hidden";
+      }
     });
 
-    document.body.removeChild(hiddenContainer); // Limpiar el DOM
+    // Eliminar bordes de los inputs
+    const inputs = element.querySelectorAll("input, textarea, select");
+    inputs.forEach((input) => {
+      (input as HTMLElement).style.border = "none";
+      (input as HTMLElement).style.outline = "none";
+      (input as HTMLElement).style.boxShadow = "none";
+    });
+  };
 
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-    const imgWidth = 210;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  const descontarProductos = async () => {
+    try {
+      for (const producto of productos) {
+        const productRef = collection(db, "products");
+        const querySnapshot = await getDocs(productRef);
 
-    pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
-    pdf.save("Factura.pdf");
+        querySnapshot.forEach(async (docSnapshot) => {
+          const data = docSnapshot.data();
+          if (data.codigo === producto.id) {
+            const nuevaCantidad = (data.cantidad || 0) - producto.cantidad;
+            if (nuevaCantidad < 0) {
+              console.warn(`Cantidad insuficiente para el producto: ${producto.nombreDelProducto}`);
+            } else {
+              const productDocRef = doc(db, "products", docSnapshot.id);
+              await updateDoc(productDocRef, { cantidad: nuevaCantidad });
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error al descontar productos:", error);
+    }
+  };
 
-    alert("Factura exportada como PDF con éxito!");
-  } catch (error) {
-    console.error("Error al exportar la factura:", error);
-    alert("Hubo un error al exportar la factura.");
-  } finally {
-    // Eliminar el estilo global después de la captura
-    removeGlobalStyleFix();
-  }
-};
+  const generatePdfAndDownload = async () => {
+    const invoiceElement = document.querySelector(".max-w-4xl") as HTMLElement;
+    if (!invoiceElement) {
+      alert("No se encontró la factura para exportar.");
+      return;
+    }
 
+    try {
+      applyGlobalStyleFix(); // Aplicar estilo global para evitar colores no compatibles
+
+      // Clonar el nodo original para evitar modificar el DOM real
+      const clone = invoiceElement.cloneNode(true) as HTMLElement;
+
+      // SOLUCIÓN: Mejorar el reemplazo de inputs
+      const allInputs = clone.querySelectorAll("input, textarea, select");
+      allInputs.forEach((input) => {
+        const inputElement = input as HTMLInputElement;
+        const parent = inputElement.parentElement;
+
+        if (parent) {
+          // Crear un elemento de texto estático para reemplazar el input
+
+          const staticElement = document.createElement("div");
+
+          // Configurar el contenido basado en el tipo de input
+          if (inputElement.type === "number" && inputElement.value) {
+            // Para inputs numéricos, formatear como moneda si es un valor monetario
+            if (
+              inputElement.className.includes("text-right") ||
+              parent.className.includes("text-right")
+            ) {
+              staticElement.textContent = Number(
+                inputElement.value
+              ).toLocaleString("es-CO");
+            } else {
+              staticElement.textContent = inputElement.value;
+            }
+          } else {
+            staticElement.textContent = inputElement.value || "";
+          }
+
+          // Copiar los estilos relevantes del input
+          const computedStyle = window.getComputedStyle(inputElement);
+          staticElement.style.width = computedStyle.width;
+          staticElement.style.padding = computedStyle.padding;
+          staticElement.style.textAlign = computedStyle.textAlign;
+          staticElement.style.fontSize = computedStyle.fontSize;
+          staticElement.style.fontFamily = computedStyle.fontFamily;
+          staticElement.style.color = computedStyle.color;
+          staticElement.style.backgroundColor = "transparent";
+          staticElement.style.border = "none";
+          staticElement.style.outline = "none";
+          staticElement.style.boxShadow = "none";
+          staticElement.style.whiteSpace = "pre-wrap";
+
+          // Realizar el reemplazo
+          parent.replaceChild(staticElement, inputElement);
+        }
+      });
+
+      // Eliminar completamente los botones de acción
+      const actionButtons = clone.querySelectorAll("button");
+      actionButtons.forEach((button) => {
+        if (
+          button.textContent?.includes("Agregar producto") ||
+          button.textContent?.includes("Exportar a PDF") ||
+          button.textContent?.includes("X")
+        ) {
+          if (button.parentElement) {
+            button.parentElement.removeChild(button);
+          }
+        }
+      });
+
+      // Eliminar los dropdowns y elementos interactivos
+      const dropdowns = clone.querySelectorAll("ul");
+      dropdowns.forEach((dropdown) => {
+        if (dropdown.parentElement) {
+          dropdown.parentElement.removeChild(dropdown);
+        }
+      });
+
+      // Agregar el clon a un contenedor oculto en el DOM
+      const hiddenContainer = document.createElement("div");
+      hiddenContainer.style.position = "fixed";
+      hiddenContainer.style.top = "-10000px";
+      hiddenContainer.style.left = "-10000px";
+      hiddenContainer.style.width = "100vw";
+      hiddenContainer.style.height = "100vh";
+      hiddenContainer.style.overflow = "hidden";
+      hiddenContainer.style.opacity = "0";
+      hiddenContainer.style.zIndex = "-1";
+
+      hiddenContainer.appendChild(clone);
+      document.body.appendChild(hiddenContainer);
+
+      await new Promise((res) => setTimeout(res, 300)); // Asegurar renderizado
+
+      const canvas = await html2canvas(clone, {
+        scale: 2, // Aumentar la escala para mayor calidad
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      });
+
+      document.body.removeChild(hiddenContainer); // Limpiar el DOM
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgWidth = 210; // Ancho de la página A4 en mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width; // Mantener proporción
+
+      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      pdf.save("Factura.pdf");
+
+      alert("Factura exportada como PDF con éxito!");
+
+      // Descontar productos después de generar el PDF
+      await descontarProductos();
+    } catch (error) {
+      console.error("Error al exportar la factura:", error);
+      alert("Hubo un error al exportar la factura: " + error);
+    } finally {
+      removeGlobalStyleFix(); // Eliminar el estilo global después de la captura
+    }
+  };
 
   const exportPdf = () => {
     if (pdfDataUrl) {
@@ -458,7 +615,8 @@ const generatePdfAndDownload = async () => {
     };
     // Calcular total del producto
     nuevosProductos[index].total =
-      nuevosProductos[index].cantidad * nuevosProductos[index].precioDeVenta || 0;
+      nuevosProductos[index].cantidad * nuevosProductos[index].precioDeVenta ||
+      0;
     setProductos(nuevosProductos);
   };
 
@@ -502,12 +660,20 @@ const generatePdfAndDownload = async () => {
         <div className="flex justify-between items-start border-b border-gray-300 pb-4 mb-4">
           {/* DATOS EMPRESA */}
           <div>
-            <h2 className="font-bold text-lg">SKY MOTION S.A.S</h2>
-            <p>NIT 901.119.460-6</p>
-            <p>CRA 48 #17A SUR - 47 LC 101 ED. PORTUGAL</p>
-            <p>Medellín - Colombia</p>
-            <p>Email: skymotion@skymotion.com.co</p>
-            <p>Tel: (571) 3562097</p>
+            <h2 className="font-bold text-lg">{companyData.companyName}</h2>
+            <p>
+              <span className="font-bold">NIT</span> {companyData.nit}
+            </p>
+            <p>{companyData.address}</p>
+            <p>{companyData.city}</p>
+            <p>
+              <span className="font-bold">Email: </span>
+              {companyData.email}
+            </p>
+            <p>
+              <span className="font-bold">Tel: </span>
+              {companyData.phone}
+            </p>
           </div>
           {/* QR Y FACTURA */}
           <div className="text-right">
@@ -687,37 +853,39 @@ const generatePdfAndDownload = async () => {
               <tr key={index}>
                 <td className="border px-1 py-1 text-center">{index + 1}</td>
                 <td className="border px-1 py-1 relative">
-  <input
-    className="w-full border rounded px-1 py-0.5"
-    value={producto.id}
-    onChange={(e) => handleProductoInputChange(index, "id", e.target.value)}
-    onFocus={() => handleProductoInputFocus(index, "id")}
-    onBlur={() => handleProductoInputBlur()}
-    placeholder="Código"
-  />
-  {activeDropdown && 
-   activeDropdown.index === index && 
-   activeDropdown.field === "id" && (
-    <ul className="absolute z-10 bg-white border border-gray-300 rounded w-full max-h-40 overflow-y-auto">
-      {filteredProducts.map((product, productIndex) => (
-        <li
-          key={`product-code-${product.id}-${productIndex}`}
-          className="p-2 hover:bg-gray-100 cursor-pointer"
-          onClick={() => handleProductSelect(index, product)}
-        >
-          {product.codigo} - {product.nombre}
-        </li>
-      ))}
-      <li
-        key="add-product"
-        className="p-2 text-blue-500 hover:underline cursor-pointer"
-        onClick={handleAddProductClick}
-      >
-        Crear nuevo producto
-      </li>
-    </ul>
-  )}
-</td>
+                  <input
+                    className="w-full border rounded px-1 py-0.5"
+                    value={producto.id}
+                    onChange={(e) =>
+                      handleProductoInputChange(index, "id", e.target.value)
+                    }
+                    onFocus={() => handleProductoInputFocus(index, "id")}
+                    onBlur={() => handleProductoInputBlur()}
+                    placeholder="Código"
+                  />
+                  {activeDropdown &&
+                    activeDropdown.index === index &&
+                    activeDropdown.field === "id" && (
+                      <ul className="absolute z-10 bg-white border border-gray-300 rounded w-full max-h-40 overflow-y-auto">
+                        {filteredProducts.map((product, productIndex) => (
+                          <li
+                            key={`product-code-${product.id}-${productIndex}`}
+                            className="p-2 hover:bg-gray-100 cursor-pointer"
+                            onClick={() => handleProductSelect(index, product)}
+                          >
+                            {product.codigo} - {product.nombre}
+                          </li>
+                        ))}
+                        <li
+                          key="add-product"
+                          className="p-2 text-blue-500 hover:underline cursor-pointer"
+                          onClick={handleAddProductClick}
+                        >
+                          Crear nuevo producto
+                        </li>
+                      </ul>
+                    )}
+                </td>
                 <td className="border px-1 py-1 relative">
                   <input
                     className="w-full border rounded px-1 py-0.5"
@@ -790,7 +958,10 @@ const generatePdfAndDownload = async () => {
                   />
                 </td>
                 <td className="border px-1 py-1 text-right">
-                  {producto.total?.toLocaleString("es-CO", { style: "currency", currency: "COP" }) || "$0"}
+                  {producto.total?.toLocaleString("es-CO", {
+                    style: "currency",
+                    currency: "COP",
+                  }) || "$0"}
                 </td>
                 <td className="border px-1 py-1 text-center">
                   <button
@@ -808,7 +979,7 @@ const generatePdfAndDownload = async () => {
         </table>
         <button
           type="button"
-          className="mb-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+          className="mb-4 mr-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
           onClick={agregarProducto}
         >
           + Agregar producto
@@ -816,16 +987,21 @@ const generatePdfAndDownload = async () => {
 
         <button
           type="button"
-          className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          className="mb-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           onClick={generatePdfAndDownload}
         >
-          Exportar a PDF
+          Guardar y Exportar a PDF
         </button>
+
+        <div className="mt-4">
+          <label className="font-bold">Valor en letras:</label>
+          <span className="ml-2">{formatCurrencyToWords(totalVenta)}</span>
+        </div>
 
         {/* TOTALES Y OTROS CAMPOS */}
         <div className="flex flex-col md:flex-row justify-between gap-4 mt-4">
           <div className="w-full md:w-1/2 border border-gray-300 p-4 text-sm mb-4 md:mb-0">
-          <label className="font-bold">Referencia de Pago</label>
+            <label className="font-bold">Referencia de Pago</label>
             <input
               className="border p-2 rounded w-full mb-2"
               placeholder="Referencia de Pago"
