@@ -8,6 +8,9 @@ import RegisterProduct from "./RegisterProduct";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { formatCurrencyToWords } from "../../utils/formatCurrency";
+import * as invoiceFunctions from "./invoice/invoiceFunctions";
+import ClientDetails from "./invoice/ClientDetails";
+import { registerSales } from "./invoice/invoiceFunctions";
 
 // Estructura de producto para la factura
 interface ProductInvoice {
@@ -63,34 +66,7 @@ export const InvoiceForm: React.FC = () => {
 
   // Cargar datos de la empresa
   useEffect(() => {
-    const fetchCompanyData = async () => {
-      try {
-        // Asumiendo que solo tienes un documento en la colección company
-        // Si tienes múltiples empresas, necesitarás un ID específico
-        const companyCollection = collection(db, "company");
-        const querySnapshot = await getDocs(companyCollection);
-
-        if (!querySnapshot.empty) {
-          // Tomar el primer documento de la colección
-          const companyDoc = querySnapshot.docs[0];
-          const data = companyDoc.data() as CompanyData;
-
-          setCompanyData({
-            companyName: data.companyName || "SKY MOTION S.A.S", // Valores por defecto en caso de que no existan
-            nit: data.nit || "901.119.460-6",
-            address: data.address || "CRA 48 #17A SUR - 47 LC 101 ED. PORTUGAL",
-            city: data.city || "Medellín - Colombia",
-            email: data.email || "skymotion@skymotion.com.co",
-            phone: data.phone || "(571) 3562097",
-          });
-        }
-      } catch (error) {
-        console.error("Error al obtener datos de la empresa:", error);
-        // Mantener los datos por defecto en caso de error
-      }
-    };
-
-    fetchCompanyData();
+    invoiceFunctions.fetchCompanyData(setCompanyData);
   }, []);
 
   const handleClientCreated = (newClient: any) => {
@@ -444,30 +420,6 @@ export const InvoiceForm: React.FC = () => {
     });
   };
 
-  const descontarProductos = async () => {
-    try {
-      for (const producto of productos) {
-        const productRef = collection(db, "products");
-        const querySnapshot = await getDocs(productRef);
-
-        querySnapshot.forEach(async (docSnapshot) => {
-          const data = docSnapshot.data();
-          if (data.codigo === producto.id) {
-            const nuevaCantidad = (data.cantidad || 0) - producto.cantidad;
-            if (nuevaCantidad < 0) {
-              console.warn(`Cantidad insuficiente para el producto: ${producto.nombreDelProducto}`);
-            } else {
-              const productDocRef = doc(db, "products", docSnapshot.id);
-              await updateDoc(productDocRef, { cantidad: nuevaCantidad });
-            }
-          }
-        });
-      }
-    } catch (error) {
-      console.error("Error al descontar productos:", error);
-    }
-  };
-
   const generatePdfAndDownload = async () => {
     const invoiceElement = document.querySelector(".max-w-4xl") as HTMLElement;
     if (!invoiceElement) {
@@ -584,8 +536,15 @@ export const InvoiceForm: React.FC = () => {
 
       alert("Factura exportada como PDF con éxito!");
 
+      // Calcular el costo de la venta
+      const costoVenta = await invoiceFunctions.calculateCost(productos);
+      console.log("Costo total de la venta:", costoVenta);
+
       // Descontar productos después de generar el PDF
-      await descontarProductos();
+      await invoiceFunctions.descontarProductos(productos);
+
+      // Registrar las ventas en la colección salesInfo
+      await registerSales(productos);
     } catch (error) {
       console.error("Error al exportar la factura:", error);
       alert("Hubo un error al exportar la factura: " + error);
@@ -716,122 +675,24 @@ export const InvoiceForm: React.FC = () => {
           Factura de Venta
         </h2>
         {/* DATOS DEL CLIENTE */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="relative" id="nombreCompletoDropdown">
-            <label
-              className="block text-gray-700 text-sm font-bold mb-2"
-              htmlFor="nombreCompleto"
-            >
-              Nombre Completo / Razón Social
-            </label>
-            <input
-              id="nombreCompleto"
-              className="border p-2 rounded w-full"
-              placeholder="Nombre completo o razón social"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setShowDropdown(true);
-              }}
-              onFocus={() => setShowDropdown(true)}
-            />
-            {showDropdown && (
-              <ul className="absolute z-10 bg-white border border-gray-300 rounded w-full max-h-40 overflow-y-auto">
-                {filteredClients.map((client, index) => (
-                  <li
-                    key={`client-${client.id}-${index}`}
-                    className="p-2 hover:bg-gray-100 cursor-pointer"
-                    onClick={() => handleClientSelect(client)}
-                  >
-                    {client.fullName}
-                  </li>
-                ))}
-                <li
-                  key="add-client"
-                  className="p-2 text-blue-500 hover:underline cursor-pointer"
-                  onClick={handleAddClientClick}
-                >
-                  Agregar un nuevo cliente
-                </li>
-              </ul>
-            )}
-            {showAddClientModal && (
-              <div className="fixed inset-0 bg-gray-200 bg-opacity-50 flex items-center justify-center">
-                <div className="bg-white p-4 rounded shadow-lg w-1/2">
-                  <button
-                    className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-                    onClick={closeAddClientModal}
-                  >
-                    X
-                  </button>
-                  <AddClient
-                    onCloseModal={closeAddClientModal}
-                    onRegistered={handleClientCreated}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-          <div>
-            <label
-              className="block text-gray-700 text-sm font-bold mb-2"
-              htmlFor="numeroIdentificacion"
-            >
-              Número de Identificación
-            </label>
-            <input
-              id="numeroIdentificacion"
-              className="border p-2 rounded"
-              placeholder="Número de identificación"
-              value={cliente.numeroDeIdentificacion}
-              readOnly
-            />
-          </div>
-          <div>
-            <label
-              className="block text-gray-700 text-sm font-bold mb-2"
-              htmlFor="telefono"
-            >
-              Teléfono
-            </label>
-            <input
-              id="telefono"
-              className="border p-2 rounded"
-              placeholder="Teléfono"
-              value={cliente.celular}
-              readOnly
-            />
-          </div>
-          <div>
-            <label
-              className="block text-gray-700 text-sm font-bold mb-2"
-              htmlFor="direccion"
-            >
-              Dirección
-            </label>
-            <input
-              id="direccion"
-              className="border p-2 rounded"
-              placeholder="Dirección"
-              value={cliente.direccion}
-              readOnly
-            />
-          </div>
-          <div className="col-span-2">
-            <label
-              className="block text-gray-700 text-sm font-bold mb-2"
-              htmlFor="ciudad"
-            >
-              Ciudad
-            </label>
-            <input
-              id="ciudad"
-              className="border p-2 rounded w-full"
-              placeholder="Ciudad"
-              value={cliente.municipiosDepartamentos}
-              readOnly
-            />
-          </div>
+        <ClientDetails
+          cliente={cliente}
+          search={search}
+          setSearch={setSearch}
+          filteredClients={filteredClients}
+          handleClientSelect={handleClientSelect}
+          handleAddClientClick={handleAddClientClick}
+          showDropdown={showDropdown}
+          setShowDropdown={setShowDropdown}
+          showAddClientModal={showAddClientModal}
+          closeAddClientModal={closeAddClientModal}
+          AddClient={AddClient}
+          handleClientCreated={handleClientCreated}
+        />
+
+        <div className="mt-4">
+          <label className="font-bold">Valor en letras:</label>
+          <span className="ml-2">{formatCurrencyToWords(totalVenta)}</span>
         </div>
 
         {/* TABLA DE PRODUCTOS */}
