@@ -10,7 +10,7 @@ import jsPDF from "jspdf";
 import { formatCurrencyToWords } from "../../utils/formatCurrency";
 import * as invoiceFunctions from "./invoice/invoiceFunctions";
 import ClientDetails from "./invoice/ClientDetails";
-import { registerSales } from "./invoice/invoiceFunctions";
+import { registerSales, registerSaleWithDetails } from "./invoice/invoiceFunctions";
 
 // Estructura de producto para la factura
 interface ProductInvoice {
@@ -545,6 +545,9 @@ export const InvoiceForm: React.FC = () => {
 
       // Registrar las ventas en la colección salesInfo
       await registerSales(productos);
+
+      // Registrar la venta con detalles en la colección sales
+      await registerSaleWithDetails(productos, totalVenta);
     } catch (error) {
       console.error("Error al exportar la factura:", error);
       alert("Hubo un error al exportar la factura: " + error);

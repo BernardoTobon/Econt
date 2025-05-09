@@ -45,20 +45,22 @@ export const descontarProductos = async (
       const productRef = collection(db, "products");
       const querySnapshot = await getDocs(productRef);
 
-      querySnapshot.forEach(async (docSnapshot) => {
+      const docSnapshot = querySnapshot.docs.find(
+        (doc) => doc.data().codigo === producto.id
+      );
+
+      if (docSnapshot) {
         const data = docSnapshot.data();
-        if (data.codigo === producto.id) {
-          const nuevaCantidad = (data.cantidad || 0) - producto.cantidad;
-          if (nuevaCantidad < 0) {
-            console.warn(
-              `Cantidad insuficiente para el producto: ${producto.nombreDelProducto}`
-            );
-          } else {
-            const productDocRef = doc(db, "products", docSnapshot.id);
-            await updateDoc(productDocRef, { cantidad: nuevaCantidad });
-          }
+        const nuevaCantidad = (data.cantidad || 0) - producto.cantidad;
+        if (nuevaCantidad < 0) {
+          console.warn(
+            `Cantidad insuficiente para el producto: ${producto.nombreDelProducto}`
+          );
+        } else {
+          const productDocRef = doc(db, "products", docSnapshot.id);
+          await updateDoc(productDocRef, { cantidad: nuevaCantidad });
         }
-      });
+      }
     }
   } catch (error) {
     console.error("Error al descontar productos:", error);
@@ -66,7 +68,9 @@ export const descontarProductos = async (
 };
 
 // Asegurar que calculateCost esté correctamente exportada
-export const calculateCost = async (productos: { id: string; cantidad: number; nombreDelProducto: string }[]) => {
+export const calculateCost = async (
+  productos: { id: string; cantidad: number; nombreDelProducto: string }[]
+) => {
   let totalCost = 0;
 
   try {
@@ -85,12 +89,6 @@ export const calculateCost = async (productos: { id: string; cantidad: number; n
         const valorUnitarioCompra = productData.valorUnitarioCompra || 0;
         const costoProducto = valorUnitarioCompra * producto.cantidad;
         totalCost += costoProducto;
-
-        // Actualizar el registro existente en la colección "products"
-        const productDocRef = doc(db, "products", productDoc.id);
-        await updateDoc(productDocRef, {
-          cantidad: (productData.cantidad || 0) - producto.cantidad,
-        });
 
         // Verificar si el registro ya existe en la colección "costSale"
         const existingCostDoc = costSaleSnapshot.docs.find(
@@ -124,12 +122,14 @@ export const calculateCost = async (productos: { id: string; cantidad: number; n
   return totalCost;
 };
 
-export const registerSales = async (productos: { id: string; nombreDelProducto: string; cantidad: number; precioDeVenta: number }[]) => {
+export const registerSales = async (
+  productos: { id: string; nombreDelProducto: string; cantidad: number; precioDeVenta: number }[]
+) => {
   try {
-    for (const producto of productos) {
-      const salesCollection = collection(db, "salesInfo");
-      const querySnapshot = await getDocs(salesCollection);
+    const salesCollection = collection(db, "salesInfo");
+    const querySnapshot = await getDocs(salesCollection);
 
+    for (const producto of productos) {
       const existingDoc = querySnapshot.docs.find(
         (doc) => doc.data().codigo === producto.id
       );
@@ -158,5 +158,36 @@ export const registerSales = async (productos: { id: string; nombreDelProducto: 
     console.log("Ventas registradas/actualizadas exitosamente en la colección salesInfo.");
   } catch (error) {
     console.error("Error al registrar/actualizar las ventas en salesInfo:", error);
+  }
+};
+
+export const registerSaleWithDetails = async (
+  productos: { id: string; nombreDelProducto: string; cantidad: number; precioDeVenta: number; iva: number }[],
+  totalVenta: number
+) => {
+  try {
+    // Crear un nuevo documento en la colección `sales`
+    const saleDocRef = await addDoc(collection(db, "sales"), {
+      fecha: new Date().toISOString(),
+      total: totalVenta,
+      imagen: "", // Campo para la imagen, actualmente vacío
+    });
+
+    // Agregar los detalles de los productos vendidos como una subcolección
+    for (const producto of productos) {
+      const totalProducto = producto.cantidad * producto.precioDeVenta;
+      await addDoc(collection(saleDocRef, "detalle"), {
+        codigo: producto.id,
+        nombreProducto: producto.nombreDelProducto,
+        valorUnitarioVenta: producto.precioDeVenta,
+        iva: producto.iva,
+        cantidad: producto.cantidad,
+        total: totalProducto,
+      });
+    }
+
+    console.log("Venta registrada exitosamente en la colección sales.");
+  } catch (error) {
+    console.error("Error al registrar la venta en sales:", error);
   }
 };
