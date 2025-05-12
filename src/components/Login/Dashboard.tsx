@@ -13,6 +13,9 @@ import {
   LineElement,
   ArcElement,
 } from "chart.js";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "../../firebase/Index";
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -212,12 +215,46 @@ const filterDataByDate = (data: DateAmount[]): DateAmount[] => {
       },
     ],
   };
+  const [mostSoldProducts, setMostSoldProducts] = useState<{ name: string; quantity: number }[]>([]);
+
+  useEffect(() => {
+    const fetchMostSoldProducts = async () => {
+      try {
+        const salesInfoCollection = collection(db, "salesInfo");
+        const querySnapshot = await getDocs(salesInfoCollection);
+
+        const productSales: { [key: string]: number } = {};
+
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          const descripcion = data.descripcion;
+          const cantidad = data.cantidad || 0;
+
+          if (descripcion) {
+            productSales[descripcion] = (productSales[descripcion] || 0) + cantidad;
+          }
+        });
+
+        const sortedProducts = Object.entries(productSales)
+          .map(([name, quantity]) => ({ name, quantity }))
+          .sort((a, b) => b.quantity - a.quantity)
+          .slice(0, 5); // Obtener los 5 productos más vendidos
+
+        setMostSoldProducts(sortedProducts);
+      } catch (error) {
+        console.error("Error al obtener los productos más vendidos:", error);
+      }
+    };
+
+    fetchMostSoldProducts();
+  }, []);
+
   const mostSoldProductsChart = {
-    labels: soldProducts.map((p) => p.name),
+    labels: mostSoldProducts.map((p) => p.name),
     datasets: [
       {
         label: "Productos Más Vendidos",
-        data: soldProducts.map((p) => p.quantity),
+        data: mostSoldProducts.map((p) => p.quantity),
         backgroundColor: [
           "#22d3ee",
           "#4ade80",
@@ -228,12 +265,47 @@ const filterDataByDate = (data: DateAmount[]): DateAmount[] => {
       },
     ],
   };
+
+  const [leastSoldProducts, setLeastSoldProducts] = useState<{ name: string; quantity: number }[]>([]);
+
+  useEffect(() => {
+    const fetchLeastSoldProducts = async () => {
+      try {
+        const salesInfoCollection = collection(db, "salesInfo");
+        const querySnapshot = await getDocs(salesInfoCollection);
+
+        const productSales: { [key: string]: number } = {};
+
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          const descripcion = data.descripcion;
+          const cantidad = data.cantidad || 0;
+
+          if (descripcion) {
+            productSales[descripcion] = (productSales[descripcion] || 0) + cantidad;
+          }
+        });
+
+        const sortedProducts = Object.entries(productSales)
+          .map(([name, quantity]) => ({ name, quantity }))
+          .sort((a, b) => a.quantity - b.quantity) // Ordenar de menor a mayor
+          .slice(0, 5); // Obtener los 5 productos menos vendidos
+
+        setLeastSoldProducts(sortedProducts);
+      } catch (error) {
+        console.error("Error al obtener los productos menos vendidos:", error);
+      }
+    };
+
+    fetchLeastSoldProducts();
+  }, []);
+
   const leastSoldProductsChart = {
-    labels: soldProducts.map((p) => p.name),
+    labels: leastSoldProducts.map((p) => p.name),
     datasets: [
       {
         label: "Productos Menos Vendidos",
-        data: soldProducts.map((p) => p.quantity).sort((a, b) => a - b),
+        data: leastSoldProducts.map((p) => p.quantity),
         backgroundColor: [
           "#22d3ee",
           "#4ade80",
@@ -244,6 +316,7 @@ const filterDataByDate = (data: DateAmount[]): DateAmount[] => {
       },
     ],
   };
+
   // Array de meses para el selector
   const months = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
