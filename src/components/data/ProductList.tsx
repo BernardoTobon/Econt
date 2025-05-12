@@ -60,18 +60,27 @@ const ProductList: React.FC = () => {
       const db = getFirestore(app);
       const productsQuery = query(collection(db, "products"), orderBy("createdAt", "asc"));
       const querySnapshot = await getDocs(productsQuery);
-      const data: Product[] = querySnapshot.docs.map((doc) => {
-        const d = doc.data();
-        return {
-          id: doc.id,
-          codigo: d.codigo,
-          nombre: d.nombre,
-          valorUnitarioCompra: d.valorUnitarioCompra,
-          valorUnitarioVenta: d.valorUnitarioVenta,
-          cantidad: d.cantidad,
-          stock: d.stock,
-        };
-      });
+      const data: Product[] = await Promise.all(
+        querySnapshot.docs.map(async (doc) => {
+          const d = doc.data();
+          const bodegasCollectionRef = collection(doc.ref, "bodegas");
+          const bodegasSnapshot = await getDocs(bodegasCollectionRef);
+          const totalCantidad = bodegasSnapshot.docs.reduce((sum, bodegaDoc) => {
+            const bodegaData = bodegaDoc.data();
+            return sum + (bodegaData.cantidad || 0);
+          }, 0);
+
+          return {
+            id: doc.id,
+            codigo: d.codigo,
+            nombre: d.nombre,
+            valorUnitarioCompra: d.valorUnitarioCompra,
+            valorUnitarioVenta: d.valorUnitarioVenta,
+            cantidad: totalCantidad, // Suma de las cantidades de la subcolección bodegas
+            stock: d.stock,
+          };
+        })
+      );
       setProducts(data);
       setLoading(false);
     };
@@ -135,9 +144,17 @@ const ProductList: React.FC = () => {
                 <td className="py-2 px-2 border-1 border-green-500">{formatCurrencyCOP(product.valorUnitarioCompra)}</td>
                 <td className="py-2 px-2 border-1 border-green-500">{formatCurrencyCOP(product.valorUnitarioVenta)}</td>
                 <td
-                  className={
-                    `py-2 px-2 border-1 border-green-500 ${product.cantidad <= product.stock ? 'bg-red-200' : ''}`
-                  }
+                  className={`py-2 px-2 border-1 border-green-500 cursor-pointer ${product.cantidad <= product.stock ? 'bg-red-200' : ''}`}
+                  onClick={async () => {
+                    const db = getFirestore(app);
+                    const bodegasCollectionRef = collection(doc(db, "products", product.id), "bodegas");
+                    const bodegasSnapshot = await getDocs(bodegasCollectionRef);
+                    const bodegasInfo = bodegasSnapshot.docs.map((bodegaDoc) => {
+                      const bodegaData = bodegaDoc.data();
+                      return `${bodegaData.nombre}: ${bodegaData.cantidad}`;
+                    });
+                    alert(`Bodegas para ${product.nombre} (Código: ${product.codigo}):\n\n${bodegasInfo.join("\n")}`);
+                  }}
                 >
                   {product.cantidad}
                 </td>
