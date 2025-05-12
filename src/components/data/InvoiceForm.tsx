@@ -10,7 +10,10 @@ import jsPDF from "jspdf";
 import { formatCurrencyToWords } from "../../utils/formatCurrency";
 import * as invoiceFunctions from "./invoice/invoiceFunctions";
 import ClientDetails from "./invoice/ClientDetails";
-import { registerSales, registerSaleWithDetails } from "./invoice/invoiceFunctions";
+import {
+  registerSales,
+  registerSaleWithDetails,
+} from "./invoice/invoiceFunctions";
 
 // Estructura de producto para la factura
 interface ProductInvoice {
@@ -20,6 +23,8 @@ interface ProductInvoice {
   precioDeVenta: number;
   iva: number;
   total: number;
+  bodega?: string; // Added optional bodega property
+  bodegas?: { id: string; nombre: string }[]; // Added bodegas property to store bodega names
 }
 
 interface CompanyData {
@@ -222,54 +227,57 @@ export const InvoiceForm: React.FC = () => {
     total: 0,
   });
 
-  const handleProductSelect = (index: number, product: any) => {
-    console.log("handleProductSelect - Inicio", { index, product });
+  // Actualizar la función handleProductSelect para calcular y formatear el valor total
+const handleProductSelect = async (index: number, product: any) => {
+  console.log("handleProductSelect - Inicio", { index, product });
 
-    // Asegurarse de que estamos actualizando el producto correcto según el índice del dropdown activo
-    const targetIndex = activeDropdown ? activeDropdown.index : index;
+  const targetIndex = activeDropdown ? activeDropdown.index : index;
+
+  setProductos((prevProductos) => {
+    const nuevosProductos = [...prevProductos];
+
+    while (nuevosProductos.length <= targetIndex) {
+      nuevosProductos.push(inicializarProducto());
+    }
+
+    const valorUnitario = product.valorUnitarioVenta;
+    const cantidad = nuevosProductos[targetIndex].cantidad || 1;
+    const valorTotal = cantidad * valorUnitario;
+
+    nuevosProductos[targetIndex] = {
+      ...nuevosProductos[targetIndex],
+      id: product.codigo,
+      nombreDelProducto: product.nombre,
+      precioDeVenta: valorUnitario,
+      cantidad,
+      total: valorTotal,
+    };
+
+    return nuevosProductos;
+  });
+
+  try {
+    const bodegasSnapshot = await getDocs(
+      collection(db, `products/${product.codigo}/bodegas`)
+    );
+    const bodegas = bodegasSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      nombre: doc.data().nombre || "Sin nombre",
+    }));
 
     setProductos((prevProductos) => {
       const nuevosProductos = [...prevProductos];
-
-      // Si el índice es mayor o igual a la longitud actual, agregar filas vacías hasta alcanzar el índice
-      while (nuevosProductos.length <= targetIndex) {
-        nuevosProductos.push({
-          id: "",
-          nombreDelProducto: "",
-          cantidad: 1,
-          precioDeVenta: 0,
-          iva: 19,
-          total: 0,
-        });
-      }
-
-      // Actualizar la fila correspondiente
-      nuevosProductos[targetIndex] = {
-        ...nuevosProductos[targetIndex],
-        id: product.codigo, // Usar el campo 'codigo' del producto
-        nombreDelProducto: product.nombre,
-        precioDeVenta: product.valorUnitarioVenta, // Traer el valor unitario
-        cantidad: nuevosProductos[targetIndex].cantidad || 1, // Conservar la cantidad o usar valor por defecto
-        iva: nuevosProductos[targetIndex].iva || 19, // Conservar el IVA o usar valor por defecto
-      };
-
-      // Recalcular el total del producto
-      nuevosProductos[targetIndex].total =
-        nuevosProductos[targetIndex].cantidad *
-        nuevosProductos[targetIndex].precioDeVenta;
-
-      console.log(
-        "handleProductSelect - Después de actualizar",
-        nuevosProductos
-      );
+      nuevosProductos[targetIndex].bodegas = bodegas;
       return nuevosProductos;
     });
+  } catch (error) {
+    console.error("Error al obtener las bodegas:", error);
+  }
 
-    // Limpiar búsqueda y dropdown
-    setSearchProduct("");
-    setActiveDropdown(null);
-    console.log("handleProductSelect - Fin");
-  };
+  setSearchProduct("");
+  setActiveDropdown(null);
+  console.log("handleProductSelect - Fin");
+};
 
   const handleProductoInputChange = (
     index: number,
@@ -337,6 +345,43 @@ export const InvoiceForm: React.FC = () => {
     }, 200);
   };
 
+  // Nueva función para manejar el cambio de bodega y buscar en productLoc
+  const [bodegaCantidad, setBodegaCantidad] = useState<{ [key: number]: number | "" }>({});
+
+  const handleBodegaChange = async (index: number, bodegaId: string) => {
+    try {
+      // Actualizar la bodega seleccionada
+      setProductos((prevProductos) => {
+        const nuevosProductos = [...prevProductos];
+        nuevosProductos[index].bodega = bodegaId;
+        return nuevosProductos;
+      });
+
+      // Obtener el código del producto seleccionado
+      const codigoProducto = productos[index]?.id;
+      if (!codigoProducto) return;
+
+      // Buscar en la subcolección productLoc de la bodega seleccionada
+      const productLocSnapshot = await getDocs(
+        collection(db, `cellars/${bodegaId}/productLoc`)
+      );
+
+      const productData = productLocSnapshot.docs.find(
+        (doc) => doc.data().codigoProducto === codigoProducto
+      );
+
+      // Asegurar que el valor 0 se establezca correctamente en el estado
+      if (productData) {
+        const cantidad = productData.data().cantidad;
+        setBodegaCantidad((prev) => ({ ...prev, [index]: cantidad }));
+      } else {
+        setBodegaCantidad((prev) => ({ ...prev, [index]: 0 })); // Establecer 0 si no hay cantidad
+      }
+    } catch (error) {
+      console.error("Error al buscar en productLoc:", error);
+    }
+  };
+
   // Estado para totales y otros campos
   const [totalIVA, setTotalIVA] = useState(0);
   const [totalDescuento, setTotalDescuento] = useState(0);
@@ -344,6 +389,7 @@ export const InvoiceForm: React.FC = () => {
   const [observaciones, setObservaciones] = useState("");
   const [guia, setGuia] = useState("");
   const [referenciaPago, setReferenciaPago] = useState("");
+  const [selectedAccount, setSelectedAccount] = useState(""); // Estado inicial vacío para el dropdown
 
   // Estado para vista previa y exportación a PDF
   const [showPreview, setShowPreview] = useState(false);
@@ -615,348 +661,432 @@ export const InvoiceForm: React.FC = () => {
     setTotalVenta(Math.round(totalBruto + iva - totalDescuento));
   }, [productos, totalDescuento]);
 
+  const [accounts, setAccounts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      const querySnapshot = await getDocs(collection(db, "account"));
+      const accountsData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setAccounts(accountsData);
+    };
+    fetchAccounts();
+  }, []);
+
+  const [bodegas, setBodegas] = useState<{ id: string; nombre: string }[]>([]);
+
+  useEffect(() => {
+    const fetchBodegas = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "cellars"));
+        // Actualizar el mapeo para usar el campo cellarName
+        const bodegasData = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            nombre: data.cellarName || `Bodega ${doc.id}`,
+          };
+        });
+        console.log("Datos de bodegas obtenidos:", bodegasData);
+        setBodegas(bodegasData);
+      } catch (error) {
+        console.error("Error al obtener las bodegas:", error);
+      }
+    };
+    fetchBodegas();
+  }, []);
+
   return (
     <>
-      <div className="w-full max-w-4xl mx-auto p-6 border border-gray-400 shadow-md text-sm font-sans bg-white rounded-lg mt-6">
-        {/* CABECERA DE LA FACTURA */}
-        <div className="flex justify-between items-start border-b border-gray-300 pb-4 mb-4">
-          {/* DATOS EMPRESA */}
-          <div>
-            <h2 className="font-bold text-lg">{companyData.companyName}</h2>
-            <p>
-              <span className="font-bold">NIT</span> {companyData.nit}
-            </p>
-            <p>{companyData.address}</p>
-            <p>{companyData.city}</p>
-            <p>
-              <span className="font-bold">Email: </span>
-              {companyData.email}
-            </p>
-            <p>
-              <span className="font-bold">Tel: </span>
-              {companyData.phone}
-            </p>
+      <div className="bg-green-100">
+        <div className="w-full max-w-7xl mx-auto p-6 border border-gray-400 shadow-md text-sm font-sans bg-white rounded-lg ">
+          {/* CABECERA DE LA FACTURA */}
+          <div className="flex justify-between items-start border-b border-gray-300 pb-4 mb-4">
+            {/* DATOS EMPRESA */}
+            <div>
+              <h2 className="font-bold text-lg">{companyData.companyName}</h2>
+              <p>
+                <span className="font-bold">NIT</span> {companyData.nit}
+              </p>
+              <p>{companyData.address}</p>
+              <p>{companyData.city}</p>
+              <p>
+                <span className="font-bold">Email: </span>
+                {companyData.email}
+              </p>
+              <p>
+                <span className="font-bold">Tel: </span>
+                {companyData.phone}
+              </p>
+            </div>
+            {/* QR Y FACTURA */}
+            <div className="text-right">
+              <div className="w-24 h-24 bg-gray-200 mb-2"></div>{" "}
+              {/* QR Placeholder */}
+              <h2 className="text-lg font-bold">
+                Factura electrónica de venta
+              </h2>
+              <p className="font-bold">No. SKYM 10429</p>
+              <p className="text-xs text-gray-600">Fecha y hora Factura</p>
+              <p>
+                <strong>Generación:</strong>{" "}
+                {new Date().toLocaleString("es-CO", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+              <p>
+                <strong>Expedición:</strong>{" "}
+                {new Date().toLocaleString("es-CO", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+              <p>
+                <strong>Vencimiento:</strong>{" "}
+                {new Date().toLocaleString("es-CO", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                })}
+              </p>
+            </div>
           </div>
-          {/* QR Y FACTURA */}
-          <div className="text-right">
-            <div className="w-24 h-24 bg-gray-200 mb-2"></div>{" "}
-            {/* QR Placeholder */}
-            <h2 className="text-lg font-bold">Factura electrónica de venta</h2>
-            <p className="font-bold">No. SKYM 10429</p>
-            <p className="text-xs text-gray-600">Fecha y hora Factura</p>
-            <p>
-              <strong>Generación:</strong>{" "}
-              {new Date().toLocaleString("es-CO", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-            <p>
-              <strong>Expedición:</strong>{" "}
-              {new Date().toLocaleString("es-CO", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-            <p>
-              <strong>Vencimiento:</strong>{" "}
-              {new Date().toLocaleString("es-CO", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              })}
-            </p>
-          </div>
-        </div>
-        <h2 className="text-2xl font-bold mb-4 text-green-700">
-          Factura de Venta
-        </h2>
-        {/* DATOS DEL CLIENTE */}
-        <ClientDetails
-          cliente={cliente}
-          search={search}
-          setSearch={setSearch}
-          filteredClients={filteredClients}
-          handleClientSelect={handleClientSelect}
-          handleAddClientClick={handleAddClientClick}
-          showDropdown={showDropdown}
-          setShowDropdown={setShowDropdown}
-          showAddClientModal={showAddClientModal}
-          closeAddClientModal={closeAddClientModal}
-          AddClient={AddClient}
-          handleClientCreated={handleClientCreated}
-        />
+          <h2 className="text-2xl font-bold mb-4 text-green-700">
+            Factura de Venta
+          </h2>
+          {/* DATOS DEL CLIENTE */}
+          <ClientDetails
+            cliente={cliente}
+            search={search}
+            setSearch={setSearch}
+            filteredClients={filteredClients}
+            handleClientSelect={handleClientSelect}
+            handleAddClientClick={handleAddClientClick}
+            showDropdown={showDropdown}
+            setShowDropdown={setShowDropdown}
+            showAddClientModal={showAddClientModal}
+            closeAddClientModal={closeAddClientModal}
+            AddClient={AddClient}
+            handleClientCreated={handleClientCreated}
+          />
 
-        <div className="mt-4">
-          <label className="font-bold">Valor en letras:</label>
-          <span className="ml-2">{formatCurrencyToWords(totalVenta)}</span>
-        </div>
-
-        {/* TABLA DE PRODUCTOS */}
-        <table className="w-full border-collapse border border-gray-300 text-xs mb-4">
-          <thead className="bg-gray-200">
-            <tr>
-              <th className="border px-1 py-1 w-6">#</th>
-              <th className="border px-1 py-1 w-14">Código</th>
-              <th className="border px-1 py-1 w-32">Descripción</th>
-              <th className="border px-1 py-1 w-10">Cant.</th>
-              <th className="border px-1 py-1 w-14">Vr. Unit.</th>
-              <th className="border px-1 py-1 w-14">IVA %</th>
-              <th className="border px-1 py-1 w-14">Vr. Total</th>
-              <th className="border px-1 py-1 w-10">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {productos.map((producto, index) => (
-              <tr key={index}>
-                <td className="border px-1 py-1 text-center">{index + 1}</td>
-                <td className="border px-1 py-1 relative">
-                  <input
-                    className="w-full border rounded px-1 py-0.5"
-                    value={producto.id}
-                    onChange={(e) =>
-                      handleProductoInputChange(index, "id", e.target.value)
-                    }
-                    onFocus={() => handleProductoInputFocus(index, "id")}
-                    onBlur={() => handleProductoInputBlur()}
-                    placeholder="Código"
-                  />
-                  {activeDropdown &&
-                    activeDropdown.index === index &&
-                    activeDropdown.field === "id" && (
-                      <ul className="absolute z-10 bg-white border border-gray-300 rounded w-full max-h-40 overflow-y-auto">
-                        {filteredProducts.map((product, productIndex) => (
-                          <li
-                            key={`product-code-${product.id}-${productIndex}`}
-                            className="p-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={() => handleProductSelect(index, product)}
-                          >
-                            {product.codigo} - {product.nombre}
-                          </li>
-                        ))}
-                        <li
-                          key="add-product"
-                          className="p-2 text-blue-500 hover:underline cursor-pointer"
-                          onClick={handleAddProductClick}
-                        >
-                          Crear nuevo producto
-                        </li>
-                      </ul>
-                    )}
-                </td>
-                <td className="border px-1 py-1 relative">
-                  <input
-                    className="w-full border rounded px-1 py-0.5"
-                    value={producto.nombreDelProducto}
-                    onChange={(e) =>
-                      handleProductoInputChange(
-                        index,
-                        "nombreDelProducto",
-                        e.target.value
-                      )
-                    }
-                    onFocus={() =>
-                      handleProductoInputFocus(index, "nombreDelProducto")
-                    }
-                    onBlur={() => handleProductoInputBlur()}
-                    placeholder="Descripción"
-                  />
-                  {activeDropdown &&
-                    activeDropdown.index === index &&
-                    activeDropdown.field === "nombreDelProducto" && (
-                      <ul className="absolute z-10 bg-white border border-gray-300 rounded w-full max-h-40 overflow-y-auto">
-                        {filteredProducts.map((product, index) => (
-                          <li
-                            key={`product-${product.id}-${index}`}
-                            className="p-2 hover:bg-gray-100 cursor-pointer"
-                            onClick={() => handleProductSelect(index, product)}
-                          >
-                            {product.nombre}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                </td>
-                <td className="border px-1 py-1">
-                  <input
-                    type="number"
-                    min={1}
-                    className="w-14 border rounded px-1 py-0.5 text-center"
-                    value={producto.cantidad}
-                    onChange={(e) =>
-                      handleProductoChange(index, "cantidad", e.target.value)
-                    }
-                  />
-                </td>
-                <td className="border px-1 py-1">
-                  <input
-                    type="number"
-                    min={0}
-                    className="w-20 border rounded px-1 py-0.5 text-right"
-                    value={producto.precioDeVenta}
-                    onChange={(e) =>
-                      handleProductoChange(
-                        index,
-                        "precioDeVenta",
-                        e.target.value
-                      )
-                    }
-                  />
-                </td>
-                <td className="border px-1 py-1">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    className="w-14 border rounded px-1 py-0.5 text-center"
-                    value={producto.iva}
-                    onChange={(e) =>
-                      handleProductoChange(index, "iva", e.target.value)
-                    }
-                  />
-                </td>
-                <td className="border px-1 py-1 text-right">
-                  {producto.total?.toLocaleString("es-CO", {
-                    style: "currency",
-                    currency: "COP",
-                  }) || "$0"}
-                </td>
-                <td className="border px-1 py-1 text-center">
-                  <button
-                    type="button"
-                    className="text-red-500 font-bold"
-                    onClick={() => eliminarProducto(index)}
-                    disabled={productos.length === 1}
-                  >
-                    X
-                  </button>
-                </td>
+          {/* TABLA DE PRODUCTOS */}
+          <table className="w-full border-collapse border border-gray-300 text-xs mb-4">
+            <thead className="bg-gray-200">
+              <tr>
+                <th className="border px-1 py-1 w-6">#</th>
+                <th className="border px-1 py-1 w-14">Código</th>
+                <th className="border px-1 py-1 w-32">Descripción</th>
+                <th className="border px-1 py-1 w-10">Cant.</th>
+                <th className="border px-1 py-1 w-32">Bodega</th>
+                <th className="border px-1 py-1 w-14">Vr. Unit.</th>
+                <th className="border px-1 py-1 w-14">IVA %</th>
+                <th className="border px-1 py-1 w-14">Vr. Total</th>
+                <th className="border px-1 py-1 w-10">Acción</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        <button
-          type="button"
-          className="mb-4 mr-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-          onClick={agregarProducto}
-        >
-          + Agregar producto
-        </button>
-
-        <button
-          type="button"
-          className="mb-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          onClick={generatePdfAndDownload}
-        >
-          Guardar y Exportar a PDF
-        </button>
-
-        <div className="mt-4">
-          <label className="font-bold">Valor en letras:</label>
-          <span className="ml-2">{formatCurrencyToWords(totalVenta)}</span>
-        </div>
-
-        {/* TOTALES Y OTROS CAMPOS */}
-        <div className="flex flex-col md:flex-row justify-between gap-4 mt-4">
-          <div className="w-full md:w-1/2 border border-gray-300 p-4 text-sm mb-4 md:mb-0">
-            <label className="font-bold">Referencia de Pago</label>
-            <input
-              className="border p-2 rounded w-full mb-2"
-              placeholder="Referencia de Pago"
-              value={referenciaPago}
-              onChange={(e) => setReferenciaPago(e.target.value)}
-            />
-            <label className="font-bold">Guía</label>
-            <input
-              className="border p-2 rounded w-full mb-2"
-              placeholder="Guía"
-              value={guia}
-              onChange={(e) => setGuia(e.target.value)}
-            />
-            <label className="font-bold">Observaciones</label>
-            <textarea
-              className="border p-2 rounded w-full"
-              placeholder="Observaciones"
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-            />
-          </div>
-          <table className="w-full md:w-1/2 border-collapse border border-gray-300 text-sm">
+            </thead>
             <tbody>
-              <tr>
-                <td className="border border-gray-300 px-4 py-2 font-bold text-right">
-                  Total IVA:
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right">
-                  ${totalIVA.toLocaleString("es-CO")}
-                </td>
-              </tr>
-              <tr>
-                <td className="border border-gray-300 px-4 py-2 font-bold text-right">
-                  Descuento:
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right">
-                  <input
-                    type="number"
-                    min={0}
-                    className="w-24 border rounded px-1 py-0.5 text-right"
-                    value={totalDescuento}
-                    onChange={(e) => setTotalDescuento(Number(e.target.value))}
-                  />
-                </td>
-              </tr>
-              <tr className="bg-gray-100">
-                <td className="border border-gray-300 px-4 py-2 font-bold text-right">
-                  Total a Pagar:
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-right text-lg font-bold">
-                  ${totalVenta.toLocaleString("es-CO")}
-                </td>
-              </tr>
+              {productos.map((producto, index) => (
+                <tr key={index}>
+                  <td className="border px-1 py-1 text-center">{index + 1}</td>
+                  <td className="border px-1 py-1 relative">
+                    <input
+                      className="w-full border rounded px-1 py-0.5"
+                      value={producto.id}
+                      onChange={(e) =>
+                        handleProductoInputChange(index, "id", e.target.value)
+                      }
+                      onFocus={() => handleProductoInputFocus(index, "id")}
+                      onBlur={() => handleProductoInputBlur()}
+                      placeholder="Código"
+                    />
+                    {activeDropdown &&
+                      activeDropdown.index === index &&
+                      activeDropdown.field === "id" && (
+                        <ul className="absolute z-10 bg-white border border-gray-300 rounded w-full max-h-40 overflow-y-auto">
+                          {filteredProducts.map((product, productIndex) => (
+                            <li
+                              key={`product-code-${product.id}-${productIndex}`}
+                              className="p-2 hover:bg-gray-100 cursor-pointer"
+                              onClick={() =>
+                                handleProductSelect(index, product)
+                              }
+                            >
+                              {product.codigo} - {product.nombre}
+                            </li>
+                          ))}
+                          <li
+                            key="add-product"
+                            className="p-2 text-blue-500 hover:underline cursor-pointer"
+                            onClick={handleAddProductClick}
+                          >
+                            Crear nuevo producto
+                          </li>
+                        </ul>
+                      )}
+                  </td>
+                  <td className="border px-1 py-1 relative">
+                    <input
+                      className="w-full border rounded px-1 py-0.5"
+                      value={producto.nombreDelProducto}
+                      onChange={(e) =>
+                        handleProductoInputChange(
+                          index,
+                          "nombreDelProducto",
+                          e.target.value
+                        )
+                      }
+                      onFocus={() =>
+                        handleProductoInputFocus(index, "nombreDelProducto")
+                      }
+                      onBlur={() => handleProductoInputBlur()}
+                      placeholder="Descripción"
+                    />
+                    {activeDropdown &&
+                      activeDropdown.index === index &&
+                      activeDropdown.field === "nombreDelProducto" && (
+                        <ul className="absolute z-10 bg-white border border-gray-300 rounded w-full max-h-40 overflow-y-auto">
+                          {filteredProducts.map((product, index) => (
+                            <li
+                              key={`product-${product.id}-${index}`}
+                              className="p-2 hover:bg-gray-100 cursor-pointer"
+                              onClick={() =>
+                                handleProductSelect(index, product)
+                              }
+                            >
+                              {product.nombre}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                  </td>
+                  <td className="border px-1 py-1">
+                    <input
+                      type="number"
+                      min={1}
+                      className="w-14 border rounded px-1 py-0.5 text-center"
+                      value={producto.cantidad}
+                      onChange={(e) =>
+                        handleProductoChange(index, "cantidad", e.target.value)
+                      }
+                    />
+                  </td>
+                  <td className="flex border px-1 py-1 relative">
+                    <select
+                      className="w-full border rounded px-1 py-0.5"
+                      value={producto.bodega || ""}
+                      onChange={(e) => handleBodegaChange(index, e.target.value)}
+                    >
+                      <option value="">Seleccione una bodega</option>
+                      {bodegas.length > 0 ? (
+                        bodegas.map((bodega) => (
+                          <option key={bodega.id} value={bodega.id}>
+                            {bodega.nombre || `Bodega ${bodega.id}`}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="" disabled>
+                          Cargando bodegas...
+                        </option>
+                      )}
+                    </select>
+                    <input 
+                      type="text"
+                      placeholder="Cant."
+                      className=" border-1 rounded px-1 py-0.5 w-12 ml-2"
+                      value={bodegaCantidad[index] !== undefined ? bodegaCantidad[index] : 0}
+                      readOnly
+                    />
+                  </td>
+                  <td className="border px-1 py-1 text-right">
+                    {producto.precioDeVenta?.toLocaleString("es-CO", {
+                      style: "currency",
+                      currency: "COP",
+                    }) || "$0"}
+                  </td>
+                  <td className="border px-1 py-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      className="w-14 border rounded px-1 py-0.5 text-center"
+                      value={producto.iva}
+                      onChange={(e) =>
+                        handleProductoChange(index, "iva", e.target.value)
+                      }
+                    />
+                  </td>
+                  <td className="border px-1 py-1 text-right">
+                    {producto.total?.toLocaleString("es-CO", {
+                      style: "currency",
+                      currency: "COP",
+                    }) || "$0"}
+                  </td>
+                  <td className="border px-1 py-1 text-center">
+                    <button
+                      type="button"
+                      className="text-red-500 font-bold"
+                      onClick={() => eliminarProducto(index)}
+                      disabled={productos.length === 1}
+                    >
+                      X
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
+          <button
+            type="button"
+            className="mb-4 mr-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+            onClick={agregarProducto}
+          >
+            + Agregar producto
+          </button>
+
+          <button
+            type="button"
+            className="mb-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            onClick={generatePdfAndDownload}
+          >
+            Guardar y Exportar a PDF
+          </button>
+
+          <div className="mt-4">
+            <label className="font-bold">Valor en letras:</label>
+            <span className="ml-2">{formatCurrencyToWords(totalVenta)}</span>
+          </div>
+
+          <div className="mt-4">
+            <label
+              className="block text-green-400 mb-2 text-base sm:text-lg"
+              htmlFor="accountDropdown"
+            >
+              Forma de pago
+            </label>
+            <select
+              id="accountDropdown"
+              name="accountDropdown"
+              className="w-64 px-4 py-2 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+              value={selectedAccount} // Usar el estado para controlar el valor
+              onChange={(e) => setSelectedAccount(e.target.value)} // Actualizar el estado al cambiar
+            >
+              <option value="">Seleccione una cuenta</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.accountName}>
+                  {account.accountName || "Sin nombre"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* TOTALES Y OTROS CAMPOS */}
+          <div className="flex flex-col md:flex-row justify-between gap-4 mt-4">
+            <div className="w-full md:w-1/2 border border-gray-300 p-4 text-sm mb-4 md:mb-0">
+              <label className="font-bold">Referencia de Pago</label>
+              <input
+                className="border p-2 rounded w-full mb-2"
+                placeholder="Referencia de Pago"
+                value={referenciaPago}
+                onChange={(e) => setReferenciaPago(e.target.value)}
+              />
+              <label className="font-bold">Guía</label>
+              <input
+                className="border p-2 rounded w-full mb-2"
+                placeholder="Guía"
+                value={guia}
+                onChange={(e) => setGuia(e.target.value)}
+              />
+              <label className="font-bold">Observaciones</label>
+              <textarea
+                className="border p-2 rounded w-full"
+                placeholder="Observaciones"
+                value={observaciones}
+                onChange={(e) => setObservaciones(e.target.value)}
+              />
+            </div>
+            <table className="w-full md:w-1/2 border-collapse border border-gray-300 text-sm">
+              <tbody>
+                <tr>
+                  <td className="border border-gray-300 px-4 py-2 font-bold text-right">
+                    Total IVA:
+                  </td>
+                  <td className="border border-gray-300 px-4 py-2 text-right">
+                    ${totalIVA.toLocaleString("es-CO")}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-300 px-4 py-2 font-bold text-right">
+                    Descuento:
+                  </td>
+                  <td className="border border-gray-300 px-4 py-2 text-right">
+                    <input
+                      type="number"
+                      min={0}
+                      className="w-24 border rounded px-1 py-0.5 text-right"
+                      value={totalDescuento}
+                      onChange={(e) =>
+                        setTotalDescuento(Number(e.target.value))
+                      }
+                    />
+                  </td>
+                </tr>
+                <tr className="bg-gray-100">
+                  <td className="border border-gray-300 px-4 py-2 font-bold text-right">
+                    Total a Pagar:
+                  </td>
+                  <td className="border border-gray-300 px-4 py-2 text-right text-lg font-bold">
+                    ${totalVenta.toLocaleString("es-CO")}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+        {showAddProductModal && (
+          <div className="fixed inset-0 bg-gray-200 bg-opacity-50 flex items-center justify-center">
+            <div className="bg-white p-4 rounded shadow-lg w-1/2">
+              <button
+                className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+                onClick={closeAddProductModal}
+              >
+                X
+              </button>
+              <RegisterProduct
+                onCloseModal={closeAddProductModal}
+                onProductRegistered={handleProductCreated}
+              />
+            </div>
+          </div>
+        )}
+        {showPreview && pdfDataUrl && (
+          <div className="fixed inset-0 bg-gray-200 bg-opacity-50 flex items-center justify-center">
+            <div className="bg-white p-4 rounded shadow-lg w-3/4 h-3/4 overflow-auto">
+              <iframe
+                src={pdfDataUrl}
+                className="w-full h-full"
+                title="Vista Previa PDF"
+              ></iframe>
+              <button
+                type="button"
+                className="mt-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                onClick={exportPdf}
+              >
+                Exportar a PDF
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-      {showAddProductModal && (
-        <div className="fixed inset-0 bg-gray-200 bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-4 rounded shadow-lg w-1/2">
-            <button
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-              onClick={closeAddProductModal}
-            >
-              X
-            </button>
-            <RegisterProduct
-              onCloseModal={closeAddProductModal}
-              onProductRegistered={handleProductCreated}
-            />
-          </div>
-        </div>
-      )}
-      {showPreview && pdfDataUrl && (
-        <div className="fixed inset-0 bg-gray-200 bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-4 rounded shadow-lg w-3/4 h-3/4 overflow-auto">
-            <iframe
-              src={pdfDataUrl}
-              className="w-full h-full"
-              title="Vista Previa PDF"
-            ></iframe>
-            <button
-              type="button"
-              className="mt-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-              onClick={exportPdf}
-            >
-              Exportar a PDF
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 };
