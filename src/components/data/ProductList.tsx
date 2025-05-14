@@ -58,29 +58,43 @@ const ProductList: React.FC = () => {
     const fetchProducts = async () => {
       setLoading(true);
       const db = getFirestore(app);
+    
+      // Obtener todos los productos de la colección products
       const productsQuery = query(collection(db, "products"), orderBy("createdAt", "asc"));
       const querySnapshot = await getDocs(productsQuery);
+    
+      // Obtener todas las bodegas de la colección cellars
+      const cellarsQuerySnapshot = await getDocs(collection(db, "cellars"));
+    
       const data: Product[] = await Promise.all(
         querySnapshot.docs.map(async (doc) => {
           const d = doc.data();
-          const bodegasCollectionRef = collection(doc.ref, "bodegas");
-          const bodegasSnapshot = await getDocs(bodegasCollectionRef);
-          const totalCantidad = bodegasSnapshot.docs.reduce((sum, bodegaDoc) => {
-            const bodegaData = bodegaDoc.data();
-            return sum + (bodegaData.cantidad || 0);
-          }, 0);
-
+    
+          let totalCantidad = 0;
+    
+          // Iterar sobre las bodegas y sumar las cantidades de la subcolección productLoc
+          for (const cellarDoc of cellarsQuerySnapshot.docs) {
+            const productLocSnapshot = await getDocs(collection(cellarDoc.ref, "productLoc"));
+            productLocSnapshot.docs.forEach((productLocDoc) => {
+              const productLocData = productLocDoc.data();
+              if (productLocData.codigoProducto === d.codigo) {
+                totalCantidad += productLocData.cantidad || 0;
+              }
+            });
+          }
+    
           return {
             id: doc.id,
             codigo: d.codigo,
             nombre: d.nombre,
             valorUnitarioCompra: d.valorUnitarioCompra,
             valorUnitarioVenta: d.valorUnitarioVenta,
-            cantidad: totalCantidad, // Suma de las cantidades de la subcolección bodegas
+            cantidad: totalCantidad, // Suma de las cantidades de la subcolección productLoc
             stock: d.stock,
           };
         })
       );
+    
       setProducts(data);
       setLoading(false);
     };
@@ -106,7 +120,7 @@ const ProductList: React.FC = () => {
             placeholder="Buscar por código o nombre"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="border border-green-400 rounded px-2 py-1"
+            className="border border-green-400 rounded px-2 py-1 w-64"
           />
         </label>
         <label className="text-green-700 font-bold flex justify-end">
@@ -147,12 +161,20 @@ const ProductList: React.FC = () => {
                   className={`py-2 px-2 border-1 border-green-500 cursor-pointer ${product.cantidad <= product.stock ? 'bg-red-200' : ''}`}
                   onClick={async () => {
                     const db = getFirestore(app);
-                    const bodegasCollectionRef = collection(doc(db, "products", product.id), "bodegas");
-                    const bodegasSnapshot = await getDocs(bodegasCollectionRef);
-                    const bodegasInfo = bodegasSnapshot.docs.map((bodegaDoc) => {
-                      const bodegaData = bodegaDoc.data();
-                      return `${bodegaData.nombre}: ${bodegaData.cantidad}`;
-                    });
+                    const cellarsQuerySnapshot = await getDocs(collection(db, "cellars"));
+                    const bodegasInfo: string[] = [];
+                
+                    for (const cellarDoc of cellarsQuerySnapshot.docs) {
+                      const cellarData = cellarDoc.data(); // Obtener los datos de la bodega
+                      const productLocSnapshot = await getDocs(collection(cellarDoc.ref, "productLoc"));
+                      productLocSnapshot.docs.forEach((productLocDoc) => {
+                        const productLocData = productLocDoc.data();
+                        if (productLocData.codigoProducto === product.codigo) {
+                          bodegasInfo.push(`${cellarData.cellarName || cellarDoc.id}: ${productLocData.cantidad}`);
+                        }
+                      });
+                    }
+                
                     alert(`Bodegas para ${product.nombre} (Código: ${product.codigo}):\n\n${bodegasInfo.join("\n")}`);
                   }}
                 >
