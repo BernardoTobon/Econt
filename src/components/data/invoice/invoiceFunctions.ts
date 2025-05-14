@@ -3,6 +3,16 @@
 import { db } from "../../../firebase/Index";
 import { collection, getDocs, doc, updateDoc, addDoc } from "firebase/firestore";
 
+// Define the ProductInvoice interface locally to avoid dependency issues
+interface ProductInvoice {
+  id: string;
+  nombreDelProducto: string;
+  cantidad: number;
+  precioDeVenta: number;
+  iva: number;
+  total: number;
+}
+
 // Cambiar el tipo de `setCompanyData` para que sea más explícito y evitar el uso de `any`
 interface CompanyData {
   companyName: string;
@@ -208,3 +218,151 @@ export const registerSaleWithDetails = async (
     console.error("Error al registrar la venta en sales:", error);
   }
 };
+
+export const applyGlobalStyleFix = () => {
+  const style = document.createElement("style");
+  style.id = "global-oklch-fix";
+  style.innerHTML = `
+    * {
+      color: initial !important;
+      background-color: initial !important;
+      border-color: initial !important;
+    }
+  `;
+  document.head.appendChild(style);
+};
+
+export const removeGlobalStyleFix = () => {
+  const style = document.getElementById("global-oklch-fix");
+  if (style) {
+    document.head.removeChild(style);
+  }
+};
+
+export const replaceInputsWithStaticContent = (element: HTMLElement) => {
+  const inputs = element.querySelectorAll("input, textarea, select");
+  inputs.forEach((input) => {
+    const parent = input.parentElement;
+    if (parent) {
+      const staticElement = document.createElement("div");
+      staticElement.textContent = (input as HTMLInputElement).value || "";
+
+      // Copiar estilos relevantes del input
+      const computedStyle = window.getComputedStyle(input);
+      staticElement.style.cssText = computedStyle.cssText;
+      staticElement.style.whiteSpace = "pre-wrap"; // Asegurar que los saltos de línea se respeten
+      staticElement.style.backgroundColor = "transparent"; // Fondo transparente
+      staticElement.style.border = "none"; // Sin bordes
+      staticElement.style.outline = "none"; // Sin contorno
+      staticElement.style.boxShadow = "none"; // Sin sombra
+
+      parent.replaceChild(staticElement, input);
+    }
+  });
+};
+
+export const copyComputedStyles = (source: HTMLElement, target: HTMLElement) => {
+  const computed = window.getComputedStyle(source);
+  for (const prop of computed) {
+    target.style.setProperty(prop, computed.getPropertyValue(prop));
+  }
+
+  const sourceChildren = source.children;
+  const targetChildren = target.children;
+  for (let i = 0; i < sourceChildren.length; i++) {
+    copyComputedStyles(
+      sourceChildren[i] as HTMLElement,
+      targetChildren[i] as HTMLElement
+    );
+  }
+};
+
+export const hideInteractiveElements = (element: HTMLElement) => {
+  const buttons = element.querySelectorAll("button");
+  buttons.forEach((button) => {
+    if (
+      button.textContent?.includes("Agregar producto") ||
+      button.textContent?.includes("Exportar a PDF")
+    ) {
+      (button as HTMLElement).style.visibility = "hidden";
+    }
+  });
+
+  const inputs = element.querySelectorAll("input, textarea, select");
+  inputs.forEach((input) => {
+    if (!input.closest("table")) {
+      (input as HTMLElement).style.border = "none";
+      (input as HTMLElement).style.outline = "none";
+      (input as HTMLElement).style.boxShadow = "none";
+    }
+  });
+};
+
+export const hideBodegaAndAccionColumns = () => {
+  const bodegaHeaders = document.querySelectorAll(
+    "th:nth-child(5), td:nth-child(5)"
+  );
+  const accionHeaders = document.querySelectorAll(
+    "th:nth-child(9), td:nth-child(9)"
+  );
+
+  bodegaHeaders.forEach((el) => {
+    (el as HTMLElement).style.display = "none";
+  });
+
+  accionHeaders.forEach((el) => {
+    (el as HTMLElement).style.display = "none";
+  });
+};
+
+export const showBodegaAndAccionColumns = () => {
+  const bodegaHeaders = document.querySelectorAll(
+    "th:nth-child(5), td:nth-child(5)"
+  );
+  const accionHeaders = document.querySelectorAll(
+    "th:nth-child(9), td:nth-child(9)"
+  );
+
+  bodegaHeaders.forEach((el) => {
+    (el as HTMLElement).style.display = "table-cell";
+  });
+
+  accionHeaders.forEach((el) => {
+    (el as HTMLElement).style.display = "table-cell";
+  });
+};
+
+export const fetchClients = async (setAllClients: (clients: any[]) => void) => {
+  try {
+    const querySnapshot = await getDocs(collection(db, "clients"));
+    const clients = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setAllClients(clients);
+  } catch (error) {
+    console.error("Error al obtener los clientes:", error);
+  }
+};
+
+export const fetchProducts = async (setAllProducts: (products: any[]) => void) => {
+  try {
+    const querySnapshot = await getDocs(collection(db, "products"));
+    const products = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setAllProducts(products);
+  } catch (error) {
+    console.error("Error al obtener los productos:", error);
+  }
+};
+
+export const initializeProduct = (): ProductInvoice => ({
+  id: "",
+  nombreDelProducto: "",
+  cantidad: 1,
+  precioDeVenta: 0,
+  iva: 19,
+  total: 0,
+});
