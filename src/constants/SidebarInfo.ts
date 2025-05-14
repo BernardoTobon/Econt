@@ -20,7 +20,7 @@ export const SideBarInfo = [
         links: [
             {label: "Clientes", href: "/client-list"},
             {label: "Proveedores", href: "/supplier"},
-            {label: "Empleados", href: "/addemployee"},
+            {label: "Empleados", href: "/employee"},
         ]
     },
     {
