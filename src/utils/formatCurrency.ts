@@ -8,7 +8,11 @@ export function formatCurrencyCOP(value: string | number | undefined): string {
   return '$' + num.toLocaleString('es-CO', { maximumFractionDigits: 0 });
 }
 
-export function formatCurrencyToWords(amount: number): string {
+export function formatCurrencyToWords(amount: number | undefined | null): string {
+  if (amount === undefined || amount === null) {
+    amount = 0; 
+  }
+
   const unidades = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
   const decenas = ["", "diez", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
   const centenas = ["", "cien", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"];
@@ -77,6 +81,6 @@ export function formatCurrencyToWords(amount: number): string {
     return "Número demasiado grande";
   }
 
-  const palabras = convertirNumeroALetras(amount);
+  const palabras = convertirNumeroALetras(amount) || "cero"; // Asegurar que siempre haya un valor válido
   return palabras.charAt(0).toUpperCase() + palabras.slice(1) + " pesos";
 }
