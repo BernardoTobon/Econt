@@ -38,28 +38,45 @@ export const fetchCompanyData = async (setCompanyData: (data: CompanyData) => vo
 };
 
 export const descontarProductos = async (
-  productos: { id: string; cantidad: number; nombreDelProducto: string }[]
+  productos: { id: string; cantidad: number; nombreDelProducto: string; bodega: string | undefined }[]
 ) => {
   try {
     for (const producto of productos) {
-      const productRef = collection(db, "products");
-      const querySnapshot = await getDocs(productRef);
+      if (!producto.bodega) {
+        console.error(`No se seleccionó una bodega para el producto ${producto.nombreDelProducto}`);
+        continue;
+      }
 
-      const docSnapshot = querySnapshot.docs.find(
-        (doc) => doc.data().codigo === producto.id
+      const bodegaId = producto.bodega;
+      const codigoProducto = producto.id;
+      const cantidadADescontar = producto.cantidad;
+
+      if (!codigoProducto || cantidadADescontar <= 0) {
+        console.error(`Datos inválidos para el producto ${producto.nombreDelProducto}`);
+        continue;
+      }
+
+      const productLocRef = collection(db, `cellars/${bodegaId}/productLoc`);
+      const productLocSnapshot = await getDocs(productLocRef);
+
+      const productDoc = productLocSnapshot.docs.find(
+        (doc) => doc.data().codigoProducto === codigoProducto
       );
 
-      if (docSnapshot) {
-        const data = docSnapshot.data();
-        const nuevaCantidad = (data.cantidad || 0) - producto.cantidad;
+      if (productDoc) {
+        const productData = productDoc.data();
+        const nuevaCantidad = (productData.cantidad || 0) - cantidadADescontar;
+
         if (nuevaCantidad < 0) {
-          console.warn(
-            `Cantidad insuficiente para el producto: ${producto.nombreDelProducto}`
-          );
-        } else {
-          const productDocRef = doc(db, "products", docSnapshot.id);
-          await updateDoc(productDocRef, { cantidad: nuevaCantidad });
+          console.error(`Cantidad insuficiente en la bodega ${bodegaId} para el producto ${producto.nombreDelProducto}`);
+          continue;
         }
+
+        const productDocRef = doc(db, `cellars/${bodegaId}/productLoc`, productDoc.id);
+        await updateDoc(productDocRef, { cantidad: nuevaCantidad });
+        console.log(`Cantidad actualizada para el producto ${producto.nombreDelProducto} en la bodega ${bodegaId}`);
+      } else {
+        console.error(`Producto ${producto.nombreDelProducto} no encontrado en la bodega ${bodegaId}`);
       }
     }
   } catch (error) {
