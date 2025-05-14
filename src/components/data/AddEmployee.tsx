@@ -69,10 +69,10 @@ function AddEmployee({ onRegistered }: { onRegistered?: () => void }) {
   };
 
   return (
-    <div className="flex items-start justify-center px-2 sm:px-4 min-h-screen bg-green-100">
+    <div className="flex items-start justify-center px-2 sm:px-4 min-h-screen">
       <form
         onSubmit={handleSubmit}
-        className="bg-green-950 bg-opacity-80 p-6 sm:p-10 rounded-xl shadow-2xl w-full max-w-md border border-green-500 flex flex-col items-center mt-8"
+        className="bg-green-950 bg-opacity-80 p-6 sm:p-10 rounded-xl shadow-2xl w-full max-w-md border border-green-500 flex flex-col items-center mt-2"
       >
         <h2 className="text-2xl sm:text-3xl font-bold text-green-300 mb-6 text-center tracking-widest">
           Registrar empleado

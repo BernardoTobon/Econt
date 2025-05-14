@@ -67,6 +67,14 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showDropdown]);
 
+  React.useEffect(() => {
+    if (mode === "client") {
+      setForm((prevForm) => ({ ...prevForm, personType: "natural", idType: "CC" }));
+    } else if (mode === "company") {
+      setForm((prevForm) => ({ ...prevForm, personType: "juridica", idType: "NIT" }));
+    }
+  }, [mode]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({
       ...form,
