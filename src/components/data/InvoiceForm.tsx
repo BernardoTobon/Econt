@@ -13,6 +13,16 @@ import ClientDetails from "./invoice/ClientDetails";
 import {
   registerSales,
   registerSaleWithDetails,
+  applyGlobalStyleFix,
+  removeGlobalStyleFix,
+  replaceInputsWithStaticContent,
+  copyComputedStyles,
+  hideInteractiveElements,
+  hideBodegaAndAccionColumns,
+  showBodegaAndAccionColumns,
+  fetchClients,
+  fetchProducts,
+  initializeProduct,
 } from "./invoice/invoiceFunctions";
 
 // Estructura de producto para la factura
@@ -88,15 +98,7 @@ export const InvoiceForm: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchClients = async () => {
-      const querySnapshot = await getDocs(collection(db, "clients"));
-      const clients = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setAllClients(clients);
-    };
-    fetchClients();
+    fetchClients(setAllClients);
   }, []);
 
   useEffect(() => {
@@ -188,15 +190,7 @@ export const InvoiceForm: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      const querySnapshot = await getDocs(collection(db, "products"));
-      const products = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setAllProducts(products);
-    };
-    fetchProducts();
+    fetchProducts(setAllProducts);
   }, []);
 
   useEffect(() => {
@@ -228,56 +222,56 @@ export const InvoiceForm: React.FC = () => {
   });
 
   // Actualizar la función handleProductSelect para calcular y formatear el valor total
-const handleProductSelect = async (index: number, product: any) => {
-  console.log("handleProductSelect - Inicio", { index, product });
+  const handleProductSelect = async (index: number, product: any) => {
+    console.log("handleProductSelect - Inicio", { index, product });
 
-  const targetIndex = activeDropdown ? activeDropdown.index : index;
-
-  setProductos((prevProductos) => {
-    const nuevosProductos = [...prevProductos];
-
-    while (nuevosProductos.length <= targetIndex) {
-      nuevosProductos.push(inicializarProducto());
-    }
-
-    const valorUnitario = product.valorUnitarioVenta;
-    const cantidad = nuevosProductos[targetIndex].cantidad || 1;
-    const valorTotal = cantidad * valorUnitario;
-
-    nuevosProductos[targetIndex] = {
-      ...nuevosProductos[targetIndex],
-      id: product.codigo,
-      nombreDelProducto: product.nombre,
-      precioDeVenta: valorUnitario,
-      cantidad,
-      total: valorTotal,
-    };
-
-    return nuevosProductos;
-  });
-
-  try {
-    const bodegasSnapshot = await getDocs(
-      collection(db, `products/${product.codigo}/bodegas`)
-    );
-    const bodegas = bodegasSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      nombre: doc.data().nombre || "Sin nombre",
-    }));
+    const targetIndex = activeDropdown ? activeDropdown.index : index;
 
     setProductos((prevProductos) => {
       const nuevosProductos = [...prevProductos];
-      nuevosProductos[targetIndex].bodegas = bodegas;
+
+      while (nuevosProductos.length <= targetIndex) {
+        nuevosProductos.push(inicializarProducto());
+      }
+
+      const valorUnitario = product.valorUnitarioVenta;
+      const cantidad = nuevosProductos[targetIndex].cantidad || 1;
+      const valorTotal = cantidad * valorUnitario;
+
+      nuevosProductos[targetIndex] = {
+        ...nuevosProductos[targetIndex],
+        id: product.codigo,
+        nombreDelProducto: product.nombre,
+        precioDeVenta: valorUnitario,
+        cantidad,
+        total: valorTotal,
+      };
+
       return nuevosProductos;
     });
-  } catch (error) {
-    console.error("Error al obtener las bodegas:", error);
-  }
 
-  setSearchProduct("");
-  setActiveDropdown(null);
-  console.log("handleProductSelect - Fin");
-};
+    try {
+      const bodegasSnapshot = await getDocs(
+        collection(db, `products/${product.codigo}/bodegas`)
+      );
+      const bodegas = bodegasSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        nombre: doc.data().nombre || "Sin nombre",
+      }));
+
+      setProductos((prevProductos) => {
+        const nuevosProductos = [...prevProductos];
+        nuevosProductos[targetIndex].bodegas = bodegas;
+        return nuevosProductos;
+      });
+    } catch (error) {
+      console.error("Error al obtener las bodegas:", error);
+    }
+
+    setSearchProduct("");
+    setActiveDropdown(null);
+    console.log("handleProductSelect - Fin");
+  };
 
   const handleProductoInputChange = (
     index: number,
@@ -346,41 +340,57 @@ const handleProductSelect = async (index: number, product: any) => {
   };
 
   // Nueva función para manejar el cambio de bodega y buscar en productLoc
-  const [bodegaCantidad, setBodegaCantidad] = useState<{ [key: number]: number | "" }>({});
+  const [bodegaCantidad, setBodegaCantidad] = useState<{
+    [key: number]: number | "";
+  }>({});
 
   const handleBodegaChange = async (index: number, bodegaId: string) => {
-    try {
-      // Actualizar la bodega seleccionada
-      setProductos((prevProductos) => {
-        const nuevosProductos = [...prevProductos];
-        nuevosProductos[index].bodega = bodegaId;
-        return nuevosProductos;
-      });
-
-      // Obtener el código del producto seleccionado
-      const codigoProducto = productos[index]?.id;
-      if (!codigoProducto) return;
-
-      // Buscar en la subcolección productLoc de la bodega seleccionada
-      const productLocSnapshot = await getDocs(
-        collection(db, `cellars/${bodegaId}/productLoc`)
-      );
-
-      const productData = productLocSnapshot.docs.find(
-        (doc) => doc.data().codigoProducto === codigoProducto
-      );
-
-      // Asegurar que el valor 0 se establezca correctamente en el estado
-      if (productData) {
-        const cantidad = productData.data().cantidad;
-        setBodegaCantidad((prev) => ({ ...prev, [index]: cantidad }));
-      } else {
-        setBodegaCantidad((prev) => ({ ...prev, [index]: 0 })); // Establecer 0 si no hay cantidad
-      }
-    } catch (error) {
-      console.error("Error al buscar en productLoc:", error);
+    if (!bodegaId || bodegaId.trim() === "") {
+        // Restablecer la bodega y la cantidad si se selecciona "Seleccione una bodega"
+        setProductos((prevProductos) => {
+            const nuevosProductos = [...prevProductos];
+            nuevosProductos[index].bodega = ""; // Limpiar la bodega
+            return nuevosProductos;
+        });
+        setBodegaCantidad((prev) => ({ ...prev, [index]: "" })); // Limpiar la cantidad
+        return;
     }
-  };
+
+    try {
+        // Actualizar la bodega seleccionada
+        setProductos((prevProductos) => {
+            const nuevosProductos = [...prevProductos];
+            nuevosProductos[index].bodega = bodegaId;
+            return nuevosProductos;
+        });
+
+        // Obtener el código del producto seleccionado
+        const codigoProducto = productos[index]?.id;
+        if (!codigoProducto) {
+            console.warn("El producto no tiene un código válido.");
+            return;
+        }
+
+        // Buscar en la subcolección productLoc de la bodega seleccionada
+        const productLocSnapshot = await getDocs(
+            collection(db, `cellars/${bodegaId}/productLoc`)
+        );
+
+        const productData = productLocSnapshot.docs.find(
+            (doc) => doc.data().codigoProducto === codigoProducto
+        );
+
+        // Asegurar que el valor 0 se establezca correctamente en el estado
+        if (productData) {
+            const cantidad = productData.data().cantidad;
+            setBodegaCantidad((prev) => ({ ...prev, [index]: cantidad }));
+        } else {
+            setBodegaCantidad((prev) => ({ ...prev, [index]: 0 })); // Establecer 0 si no hay cantidad
+        }
+    } catch (error) {
+        console.error("Error al buscar en productLoc:", error);
+    }
+};
 
   // Estado para totales y otros campos
   const [totalIVA, setTotalIVA] = useState(0);
@@ -395,156 +405,51 @@ const handleProductSelect = async (index: number, product: any) => {
   const [showPreview, setShowPreview] = useState(false);
   const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
 
-  const applyGlobalStyleFix = () => {
-    const style = document.createElement("style");
-    style.id = "global-oklch-fix";
-    style.innerHTML = `
-    * {
-      color: initial !important;
-      background-color: initial !important;
-      border-color: initial !important;
-    }
-  `;
-    document.head.appendChild(style);
-  };
-
-  const removeGlobalStyleFix = () => {
-    const style = document.getElementById("global-oklch-fix");
-    if (style) {
-      document.head.removeChild(style);
-    }
-  };
-
-  const replaceInputsWithStaticContent = (element: HTMLElement) => {
-    const inputs = element.querySelectorAll("input, textarea, select");
-    inputs.forEach((input) => {
-      const parent = input.parentElement;
-      if (parent) {
-        const staticElement = document.createElement("div");
-        staticElement.textContent = (input as HTMLInputElement).value || "";
-        staticElement.style.cssText = window.getComputedStyle(input).cssText;
-        staticElement.style.whiteSpace = "pre-wrap"; // Asegurar que los saltos de línea se respeten
-        parent.replaceChild(staticElement, input);
-      }
-    });
-  };
-
-  const copyComputedStyles = (source: HTMLElement, target: HTMLElement) => {
-    const computed = window.getComputedStyle(source);
-    for (const prop of computed) {
-      target.style.setProperty(prop, computed.getPropertyValue(prop));
-    }
-
-    const sourceChildren = source.children;
-    const targetChildren = target.children;
-    for (let i = 0; i < sourceChildren.length; i++) {
-      copyComputedStyles(
-        sourceChildren[i] as HTMLElement,
-        targetChildren[i] as HTMLElement
-      );
-    }
-  };
-
-  const hideInteractiveElements = (element: HTMLElement) => {
-    // Hacer invisibles los botones de agregar producto y exportar a PDF
-    const buttons = element.querySelectorAll("button");
-    buttons.forEach((button) => {
-      if (
-        button.textContent?.includes("Agregar producto") ||
-        button.textContent?.includes("Exportar a PDF")
-      ) {
-        (button as HTMLElement).style.visibility = "hidden";
-      }
-    });
-
-    // Eliminar bordes de los inputs
-    const inputs = element.querySelectorAll("input, textarea, select");
-    inputs.forEach((input) => {
-      (input as HTMLElement).style.border = "none";
-      (input as HTMLElement).style.outline = "none";
-      (input as HTMLElement).style.boxShadow = "none";
-    });
-  };
-
   const generatePdfAndDownload = async () => {
-    const invoiceElement = document.querySelector(".max-w-4xl") as HTMLElement;
+    const invoiceElement = document.querySelector(".max-w-7xl") as HTMLElement;
     if (!invoiceElement) {
       alert("No se encontró la factura para exportar.");
       return;
     }
 
     try {
+      hideBodegaAndAccionColumns(); // Ocultar columnas antes de imprimir
       applyGlobalStyleFix(); // Aplicar estilo global para evitar colores no compatibles
 
       // Clonar el nodo original para evitar modificar el DOM real
       const clone = invoiceElement.cloneNode(true) as HTMLElement;
 
-      // SOLUCIÓN: Mejorar el reemplazo de inputs
+      // Reemplazar inputs, selects y textareas con contenido estático
       const allInputs = clone.querySelectorAll("input, textarea, select");
       allInputs.forEach((input) => {
         const inputElement = input as HTMLInputElement;
         const parent = inputElement.parentElement;
 
         if (parent) {
-          // Crear un elemento de texto estático para reemplazar el input
-
           const staticElement = document.createElement("div");
+          staticElement.textContent = inputElement.value || "";
 
-          // Configurar el contenido basado en el tipo de input
-          if (inputElement.type === "number" && inputElement.value) {
-            // Para inputs numéricos, formatear como moneda si es un valor monetario
-            if (
-              inputElement.className.includes("text-right") ||
-              parent.className.includes("text-right")
-            ) {
-              staticElement.textContent = Number(
-                inputElement.value
-              ).toLocaleString("es-CO");
-            } else {
-              staticElement.textContent = inputElement.value;
-            }
-          } else {
-            staticElement.textContent = inputElement.value || "";
-          }
-
-          // Copiar los estilos relevantes del input
+          // Copiar estilos relevantes del input
           const computedStyle = window.getComputedStyle(inputElement);
-          staticElement.style.width = computedStyle.width;
-          staticElement.style.padding = computedStyle.padding;
-          staticElement.style.textAlign = computedStyle.textAlign;
-          staticElement.style.fontSize = computedStyle.fontSize;
-          staticElement.style.fontFamily = computedStyle.fontFamily;
-          staticElement.style.color = computedStyle.color;
-          staticElement.style.backgroundColor = "transparent";
-          staticElement.style.border = "none";
-          staticElement.style.outline = "none";
-          staticElement.style.boxShadow = "none";
-          staticElement.style.whiteSpace = "pre-wrap";
+          staticElement.style.cssText = computedStyle.cssText;
+          staticElement.style.whiteSpace = "pre-wrap"; // Asegurar que los saltos de línea se respeten
+          staticElement.style.backgroundColor = "transparent"; // Fondo transparente
+          staticElement.style.border = "none"; // Sin bordes
+          staticElement.style.outline = "none"; // Sin contorno
+          staticElement.style.boxShadow = "none"; // Sin sombra
 
-          // Realizar el reemplazo
           parent.replaceChild(staticElement, inputElement);
         }
       });
 
-      // Eliminar completamente los botones de acción
+      // Ocultar botones de acción
       const actionButtons = clone.querySelectorAll("button");
       actionButtons.forEach((button) => {
         if (
           button.textContent?.includes("Agregar producto") ||
-          button.textContent?.includes("Exportar a PDF") ||
-          button.textContent?.includes("X")
+          button.textContent?.includes("Guardar y Exportar a PDF")
         ) {
-          if (button.parentElement) {
-            button.parentElement.removeChild(button);
-          }
-        }
-      });
-
-      // Eliminar los dropdowns y elementos interactivos
-      const dropdowns = clone.querySelectorAll("ul");
-      dropdowns.forEach((dropdown) => {
-        if (dropdown.parentElement) {
-          dropdown.parentElement.removeChild(dropdown);
+          button.style.display = "none";
         }
       });
 
@@ -572,8 +477,8 @@ const handleProductSelect = async (index: number, product: any) => {
 
       document.body.removeChild(hiddenContainer); // Limpiar el DOM
       const imgData = canvas.toDataURL("image/png");
-
       const pdf = new jsPDF("p", "mm", "a4");
+
       const imgWidth = 210; // Ancho de la página A4 en mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width; // Mantener proporción
 
@@ -587,17 +492,59 @@ const handleProductSelect = async (index: number, product: any) => {
       console.log("Costo total de la venta:", costoVenta);
 
       // Descontar productos después de generar el PDF
-      await invoiceFunctions.descontarProductos(productos);
+      await invoiceFunctions.descontarProductos(
+        productos.map((producto) => ({
+          id: producto.id,
+          cantidad: producto.cantidad,
+          nombreDelProducto: producto.nombreDelProducto,
+          bodega: producto.bodega || "",
+        }))
+      );
 
       // Registrar las ventas en la colección salesInfo
       await registerSales(productos);
 
       // Registrar la venta con detalles en la colección sales
       await registerSaleWithDetails(productos, totalVenta);
+
+      // Restablecer el estado del componente
+      setProductos([
+        {
+          id: "",
+          nombreDelProducto: "",
+          cantidad: 1,
+          precioDeVenta: 0,
+          iva: 19,
+          total: 0,
+          bodega: "",
+          bodegas: [],
+        },
+      ]);
+      setCliente({
+        razonSocialONombreCompleto: "",
+        numeroDeIdentificacion: "",
+        celular: "",
+        direccion: "",
+        municipiosDepartamentos: "",
+      });
+      setSearch("");
+      setFilteredClients([]);
+      setAllClients([]);
+      setShowDropdown(false);
+      setShowAddClientModal(false);
+      setBodegaCantidad({});
+      setTotalIVA(0);
+      setTotalDescuento(0);
+      setTotalVenta(0);
+      setObservaciones("");
+      setGuia("");
+      setReferenciaPago("");
+      setSelectedAccount("");
     } catch (error) {
       console.error("Error al exportar la factura:", error);
       alert("Hubo un error al exportar la factura: " + error);
     } finally {
+      showBodegaAndAccionColumns(); // Mostrar columnas después de imprimir
       removeGlobalStyleFix(); // Eliminar el estilo global después de la captura
     }
   };
@@ -880,11 +827,13 @@ const handleProductSelect = async (index: number, product: any) => {
                       }
                     />
                   </td>
-                  <td className="flex border px-1 py-1 relative">
+                  <td className="flex items-center border px-1 py-1 relative">
                     <select
                       className="w-full border rounded px-1 py-0.5"
                       value={producto.bodega || ""}
-                      onChange={(e) => handleBodegaChange(index, e.target.value)}
+                      onChange={(e) =>
+                        handleBodegaChange(index, e.target.value)
+                      }
                     >
                       <option value="">Seleccione una bodega</option>
                       {bodegas.length > 0 ? (
@@ -899,11 +848,15 @@ const handleProductSelect = async (index: number, product: any) => {
                         </option>
                       )}
                     </select>
-                    <input 
+                    <input
                       type="text"
                       placeholder="Cant."
                       className=" border-1 rounded px-1 py-0.5 w-12 ml-2"
-                      value={bodegaCantidad[index] !== undefined ? bodegaCantidad[index] : 0}
+                      value={
+                        bodegaCantidad[index] !== undefined
+                          ? bodegaCantidad[index]
+                          : 0
+                      }
                       readOnly
                     />
                   </td>
@@ -955,8 +908,27 @@ const handleProductSelect = async (index: number, product: any) => {
 
           <button
             type="button"
-            className="mb-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            className="mb-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             onClick={generatePdfAndDownload}
+            disabled={
+              !cliente.razonSocialONombreCompleto ||
+              productos.some(
+                (producto) => !producto.bodega || producto.bodega === ""
+              ) ||
+              !selectedAccount || // Validar que se haya seleccionado una cuenta
+              !document.querySelector<HTMLInputElement>("#paymentMethodDropdown")?.value // Validar que se haya seleccionado un medio de pago
+            }
+            title={
+              !cliente.razonSocialONombreCompleto
+                ? "Debe seleccionar un cliente antes de guardar/exportar."
+                : productos.some((producto) => !producto.bodega || producto.bodega === "")
+                ? "Debe seleccionar una bodega para cada producto antes de guardar/exportar."
+                : !selectedAccount
+                ? "Debe seleccionar una forma de pago antes de guardar/exportar."
+                : !document.querySelector<HTMLInputElement>("#paymentMethodDropdown")?.value
+                ? "Debe seleccionar un medio de pago antes de guardar/exportar."
+                : ""
+            }
           >
             Guardar y Exportar a PDF
           </button>
@@ -966,27 +938,46 @@ const handleProductSelect = async (index: number, product: any) => {
             <span className="ml-2">{formatCurrencyToWords(totalVenta)}</span>
           </div>
 
-          <div className="mt-4">
-            <label
-              className="block text-green-400 mb-2 text-base sm:text-lg"
-              htmlFor="accountDropdown"
-            >
-              Forma de pago
-            </label>
-            <select
-              id="accountDropdown"
-              name="accountDropdown"
-              className="w-64 px-4 py-2 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
-              value={selectedAccount} // Usar el estado para controlar el valor
-              onChange={(e) => setSelectedAccount(e.target.value)} // Actualizar el estado al cambiar
-            >
-              <option value="">Seleccione una cuenta</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.accountName}>
-                  {account.accountName || "Sin nombre"}
-                </option>
-              ))}
-            </select>
+          <div className="flex">
+            <div className="mt-4">
+              <label
+                className="block text-green-400 mb-2 text-base sm:text-lg"
+                htmlFor="accountDropdown"
+              >
+                Forma de pago
+              </label>
+              <select
+                id="accountDropdown"
+                name="accountDropdown"
+                className="w-64 px-4 py-2 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                value={selectedAccount} // Usar el estado para controlar el valor
+                onChange={(e) => setSelectedAccount(e.target.value)} // Actualizar el estado al cambiar
+              >
+                <option value="">Seleccione una cuenta</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.accountName}>
+                    {account.accountName || "Sin nombre"}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mt-4 pl-4">
+              <label
+                className="block text-green-400 mb-2 text-base sm:text-lg"
+                htmlFor="paymentMethodDropdown"
+              >
+                Medio de pago
+              </label>
+              <select
+                id="paymentMethodDropdown"
+                name="paymentMethodDropdown"
+                className="w-64 px-4 py-2 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+              >
+                <option value="contado">Contado</option>
+                <option value="credito">Crédito</option>
+              </select>
+            </div>
           </div>
 
           {/* TOTALES Y OTROS CAMPOS */}
