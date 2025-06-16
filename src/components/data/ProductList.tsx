@@ -10,6 +10,7 @@ interface Product {
   id: string;
   codigo: string;
   nombre: string;
+  gramaje: string;
   valorUnitarioCompra: number;
   valorUnitarioVenta: number;
   cantidad: number;
@@ -58,20 +59,20 @@ const ProductList: React.FC = () => {
     const fetchProducts = async () => {
       setLoading(true);
       const db = getFirestore(app);
-    
+
       // Obtener todos los productos de la colección products
       const productsQuery = query(collection(db, "products"), orderBy("createdAt", "asc"));
       const querySnapshot = await getDocs(productsQuery);
-    
+
       // Obtener todas las bodegas de la colección cellars
       const cellarsQuerySnapshot = await getDocs(collection(db, "cellars"));
-    
+
       const data: Product[] = await Promise.all(
         querySnapshot.docs.map(async (doc) => {
           const d = doc.data();
-    
+
           let totalCantidad = 0;
-    
+
           // Iterar sobre las bodegas y sumar las cantidades de la subcolección productLoc
           for (const cellarDoc of cellarsQuerySnapshot.docs) {
             const productLocSnapshot = await getDocs(collection(cellarDoc.ref, "productLoc"));
@@ -81,12 +82,11 @@ const ProductList: React.FC = () => {
                 totalCantidad += productLocData.cantidad || 0;
               }
             });
-          }
-    
-          return {
+          } return {
             id: doc.id,
             codigo: d.codigo,
             nombre: d.nombre,
+            gramaje: d.gramaje || 'No especificado',
             valorUnitarioCompra: d.valorUnitarioCompra,
             valorUnitarioVenta: d.valorUnitarioVenta,
             cantidad: totalCantidad, // Suma de las cantidades de la subcolección productLoc
@@ -94,7 +94,7 @@ const ProductList: React.FC = () => {
           };
         })
       );
-    
+
       setProducts(data);
       setLoading(false);
     };
@@ -102,42 +102,41 @@ const ProductList: React.FC = () => {
   }, []);
 
   const inventoryValue = calculateInventoryValue(products);
-
   const filteredProducts = products.filter((product) => {
     return (
       product.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+      product.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.gramaje.toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
 
   return (
-    <div className="w-full bg-white rounded-xl shadow-lg p-4 border border-green-400 overflow-x-auto relative pl-26">
+    <div className="w-full bg-white rounded-xl shadow-lg p-4 border border-green-400 overflow-x-auto relative">
       <h2 className="text-2xl sm:text-3xl font-bold text-green-700 mb-6 text-center tracking-widest">Inventario</h2>
-      <div className="flex justify-between items-center mb-4">
-        <label className="text-green-700 font-bold flex justify-start">
-          <input
-            type="text"
-            placeholder="Buscar por código o nombre"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="border border-green-400 rounded px-2 py-1 w-64"
-          />
-        </label>
+      <div className="flex justify-between items-center mb-4">        <label className="text-green-700 font-bold flex justify-start">
+        <input
+          type="text"
+          placeholder="Buscar por código, nombre o gramaje"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="border border-green-400 rounded px-2 py-1 w-64"
+        />
+      </label>
         <label className="text-green-700 font-bold flex justify-end">
           VALOR DEL INVENTARIO: {formatCurrencyCOP(inventoryValue)}
-        </label>
-      </div>
+        </label>      </div>
       <button
         className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
         onClick={handleAddProductClick}
       >
         Registrar Producto
       </button>
-      <table className="w-full text-left min-w-[800px]">
+      <table className="w-full text-left min-w-[900px]">
         <thead>
           <tr className="text-green-700 border-b border-green-200">
             <th className="py-2 px-2 bg-green-100 border-2 border-green-700">Código</th>
             <th className="py-2 px-2 bg-green-100 border-2 border-green-700">Nombre</th>
+            <th className="py-2 px-2 bg-green-100 border-2 border-green-700">Gramaje</th>
             <th className="py-2 px-2 bg-green-100 border-2 border-green-700">Valor unitario compra</th>
             <th className="py-2 px-2 bg-green-100 border-2 border-green-700">Valor unitario venta</th>
             <th className="py-2 px-2 bg-green-100 border-2 border-green-700">Cantidad</th>
@@ -147,14 +146,15 @@ const ProductList: React.FC = () => {
         </thead>
         <tbody>
           {loading ? (
-            <tr><td colSpan={6} className="text-center py-6">Cargando...</td></tr>
+            <tr><td colSpan={8} className="text-center py-6">Cargando...</td></tr>
           ) : filteredProducts.length === 0 ? (
-            <tr><td colSpan={6} className="text-center py-6">No hay productos registrados.</td></tr>
+            <tr><td colSpan={8} className="text-center py-6">No hay productos registrados.</td></tr>
           ) : (
             filteredProducts.map((product) => (
               <tr key={product.id} className="border-b border-green-100 hover:bg-green-50">
                 <td className="py-2 px-2 border-1 border-green-500">{product.codigo}</td>
                 <td className="py-2 px-2 border-1 border-green-500">{product.nombre}</td>
+                <td className="py-2 px-2 border-1 border-green-500 text-sm text-gray-600">{product.gramaje}</td>
                 <td className="py-2 px-2 border-1 border-green-500">{formatCurrencyCOP(product.valorUnitarioCompra)}</td>
                 <td className="py-2 px-2 border-1 border-green-500">{formatCurrencyCOP(product.valorUnitarioVenta)}</td>
                 <td
@@ -163,7 +163,7 @@ const ProductList: React.FC = () => {
                     const db = getFirestore(app);
                     const cellarsQuerySnapshot = await getDocs(collection(db, "cellars"));
                     const bodegasInfo: string[] = [];
-                
+
                     for (const cellarDoc of cellarsQuerySnapshot.docs) {
                       const cellarData = cellarDoc.data(); // Obtener los datos de la bodega
                       const productLocSnapshot = await getDocs(collection(cellarDoc.ref, "productLoc"));
@@ -174,7 +174,7 @@ const ProductList: React.FC = () => {
                         }
                       });
                     }
-                
+
                     alert(`Bodegas para ${product.nombre} (Código: ${product.codigo}):\n\n${bodegasInfo.join("\n")}`);
                   }}
                 >
