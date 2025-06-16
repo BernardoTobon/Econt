@@ -46,11 +46,11 @@ export const SideBarInfo = [
     {
         section: "inventario",
         icon: inventaryIcon,
-        label: "Inventario",
-        links: [
-            {label: "Items de venta", href: "#"},
+        label: "Inventario",        links: [
+            {label: "Registrar Productos", href: "/register-products"},
             {label: "Inventario", href: "/inventory"},
             {label: "Bodega", href: "/cellars"},
+            {label: "Escáner de Códigos", href: "/barcode-scanner"},
         ]
     }
 ]
