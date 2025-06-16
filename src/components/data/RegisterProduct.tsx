@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from "react";
 
-interface ProductoForm {
+interface ProductForm {
   codigo: string;
   nombre: string;
   valorUnitarioCompra: string;
@@ -9,7 +9,9 @@ interface ProductoForm {
   valorTotalCompra: string;
   bodega: string;
   cantidad: string;
+  gramaje: string;
   stock: string;
+  codigoBarras: string;
 }
 
 interface RegisterProductProps {
@@ -17,12 +19,13 @@ interface RegisterProductProps {
   onProductRegistered?: (newProduct: any) => void;
 }
 
-import { getFirestore, collection, addDoc, query, where, getDocs, doc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import { app } from "../../firebase/Index";
 import { formatCurrencyCOP } from "../../utils/formatCurrency";
+import { generateUniqueBarcodeValue } from "../barcode/utils/barcodeUtils";
+import BarcodeGenerator from "../barcode/BarcodeGenerator";
 
-const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProductRegistered }) => {
-  const [form, setForm] = useState<ProductoForm>({
+const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProductRegistered }) => {  const [form, setForm] = useState<ProductForm>({
     codigo: "",
     nombre: "",
     valorUnitarioCompra: "",
@@ -30,38 +33,30 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
     valorTotalCompra: "",
     bodega: "",
     cantidad: "",
+    gramaje: "",
     stock: "",
+    codigoBarras: "",
   });
-  
-  const [success, setSuccess] = useState("");
+    const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [generatingBarcode, setGeneratingBarcode] = useState(false);
 
   const [cellars, setCellars] = useState<any[]>([]);
   const [searchCellar, setSearchCellar] = useState("");
   const [filteredCellars, setFilteredCellars] = useState<any[]>([]);
-  const [showCellarDropdown, setShowCellarDropdown] = useState(false);
+  const [showCellarDropdown, setShowCellarDropdown] = useState(false);  const [selectedWarehouses, setSelectedWarehouses] = useState<{ warehouse: string; quantity: string }[]>([]);
 
-  const [bodegasSeleccionadas, setBodegasSeleccionadas] = useState<{ bodega: string; cantidad: string }[]>([]);
-
-  const handleCantidadBodegaChange = (index: number, cantidad: string) => {
-    setBodegasSeleccionadas((prev) =>
-      prev.map((bodega, i) =>
-        i === index ? { ...bodega, cantidad } : bodega
-      )
-    );
-  };
-
-  const agregarBodegaDesdeDropdown = (cellar: any, cantidad: string) => {
-    if (!bodegasSeleccionadas.some((b) => b.bodega === cellar.cellarName)) {
-      setBodegasSeleccionadas((prev) => [
+  const addWarehouseFromDropdown = (cellar: any, quantity: string) => {
+    if (!selectedWarehouses.some((w) => w.warehouse === cellar.cellarName)) {
+      setSelectedWarehouses((prev) => [
         ...prev,
-        { bodega: cellar.cellarName, cantidad: cantidad || "0" },
+        { warehouse: cellar.cellarName, quantity: quantity || "0" },
       ]);
     } else {
-      setBodegasSeleccionadas((prev) =>
-        prev.map((b) =>
-          b.bodega === cellar.cellarName ? { ...b, cantidad } : b
+      setSelectedWarehouses((prev) =>
+        prev.map((w) =>
+          w.warehouse === cellar.cellarName ? { ...w, quantity } : w
         )
       );
     }
@@ -101,20 +96,35 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
     document.addEventListener("click", handleClickOutside);
     return () => {
       document.removeEventListener("click", handleClickOutside);
-    };
-  }, [showCellarDropdown]);
-
-  const handleCellarSelect = (cellar: any) => {
-    setForm({ ...form, bodega: cellar.cellarName });
-    setSearchCellar(cellar.cellarName);
-    setShowCellarDropdown(false);
-  };
+    };  }, [showCellarDropdown]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    
+    // Si se está cambiando el código del producto, generar nuevo código de barras
+    if (e.target.name === 'codigo' && e.target.value.trim()) {
+      generateBarcodeForProduct(e.target.value.trim());
+    } else if (e.target.name === 'codigo' && !e.target.value.trim()) {
+      // Si se borra el código, limpiar también el código de barras
+      setForm(prev => ({ ...prev, codigoBarras: "" }));
+    }
   };
 
-  const handleTotalCompraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const generateBarcodeForProduct = async (productCode: string) => {
+    if (!productCode) return;
+    
+    setGeneratingBarcode(true);
+    try {
+      const barcodeValue = await generateUniqueBarcodeValue(productCode);
+      setForm(prev => ({ ...prev, codigoBarras: barcodeValue }));
+    } catch (error) {
+      console.error("Error generando código de barras:", error);
+      setError("Error al generar el código de barras");
+    } finally {
+      setGeneratingBarcode(false);
+    }
+  };
+  const handlePurchaseTotalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const raw = e.target.value.replace(/[^\d]/g, "");
   const cantidad = parseFloat(form.cantidad);
   const totalCompra = parseFloat(raw);
@@ -128,7 +138,7 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
 };
 
 
- const handleCantidadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+ const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const rawCantidad = e.target.value.replace(/[^\d]/g, "");
   const cantidad = parseFloat(rawCantidad);
   const totalCompra = parseFloat(form.valorTotalCompra);
@@ -142,7 +152,7 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
 };
 
   // Verifica si ya existe un producto con el mismo código
-  const codigoYaExiste = async (codigo: string) => {
+  const codeAlreadyExists = async (codigo: string) => {
     const db = getFirestore(app);
     const q = query(collection(db, "products"), where("codigo", "==", codigo));
     const snapshot = await getDocs(q);
@@ -159,31 +169,30 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
     }
     setLoading(true);
     try {
-      if (await codigoYaExiste(form.codigo)) {
+      if (await codeAlreadyExists(form.codigo)) {
         setError("Ya existe un producto con ese código.");
         setLoading(false);
         return;
       }
-      const db = getFirestore(app);
-      const productRef = await addDoc(collection(db, "products"), {
+      const db = getFirestore(app);      const productRef = await addDoc(collection(db, "products"), {
         codigo: form.codigo,
         nombre: form.nombre,
         valorUnitarioCompra: Number(form.valorUnitarioCompra),
         valorUnitarioVenta: Number(form.valorUnitarioVenta),
         valorTotalCompra: Number(form.valorTotalCompra),
         stock: Number(form.stock), // Aseguramos que el stock se registre
+        codigoBarras: form.codigoBarras, // Guardamos el código de barras
+        gramaje: form.gramaje,
         createdAt: new Date(),
-      });
-
-      if (bodegasSeleccionadas.length === 0) {
-        bodegasSeleccionadas.push({ bodega: form.bodega || "Bodega", cantidad: form.cantidad || "0" });
-      } else if (bodegasSeleccionadas.length === 1 && !form.bodega) {
-        bodegasSeleccionadas[0].bodega = bodegasSeleccionadas[0].bodega || "Bodega";
+      });if (selectedWarehouses.length === 0) {
+        selectedWarehouses.push({ warehouse: form.bodega || "Bodega", quantity: form.cantidad || "0" });
+      } else if (selectedWarehouses.length === 1 && !form.bodega) {
+        selectedWarehouses[0].warehouse = selectedWarehouses[0].warehouse || "Bodega";
       }
 
       // Guardar las bodegas en la subcolección productLoc dentro de la colección cellars
-      for (const bodega of bodegasSeleccionadas) {
-        const cellarQuery = query(collection(db, "cellars"), where("cellarName", "==", bodega.bodega));
+      for (const warehouse of selectedWarehouses) {
+        const cellarQuery = query(collection(db, "cellars"), where("cellarName", "==", warehouse.warehouse));
         const cellarSnapshot = await getDocs(cellarQuery);
 
         if (!cellarSnapshot.empty) {
@@ -192,16 +201,14 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
           await addDoc(productLocCollectionRef, {
             codigoProducto: form.codigo,
             nombreProducto: form.nombre,
-            cantidad: Number(bodega.cantidad),
+            cantidad: Number(warehouse.quantity),
           });
         } else {
-          console.error(`No se encontró la bodega con el nombre: ${bodega.bodega}`);
+          console.error(`No se encontró la bodega con el nombre: ${warehouse.warehouse}`);
         }
-      }
-
-      setSuccess("¡Producto registrado exitosamente!");
-      setForm({ codigo: "", nombre: "", valorUnitarioCompra: "", valorUnitarioVenta: "", valorTotalCompra: "", bodega: "", cantidad: "", stock: "" });
-      setBodegasSeleccionadas([]); // Limpiar bodegas seleccionadas
+      }      setSuccess("¡Producto registrado exitosamente!");
+      setForm({ codigo: "", nombre: "", valorUnitarioCompra: "", valorUnitarioVenta: "", valorTotalCompra: "", bodega: "", cantidad: "", gramaje: "", stock: "", codigoBarras: "" });
+      setSelectedWarehouses([]); // Limpiar bodegas seleccionadas
       if (onProductRegistered) onProductRegistered({ id: productRef.id, ...form });
       if (onCloseModal) onCloseModal();
     } catch (err) {
@@ -219,7 +226,7 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
         <h2 className="text-2xl sm:text-3xl font-bold text-green-300 mb-6 text-center tracking-widest">
           Registrar Producto
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
           <div className="mb-4 w-full">
           <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="codigo">
             Código
@@ -258,13 +265,12 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
             name="valorTotalCompra"
             inputMode="numeric"
             value={formatCurrencyCOP(form.valorTotalCompra)}
-            onChange={handleTotalCompraChange}
+            onChange={handlePurchaseTotalChange}
             className="w-full px-8 py-3 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg text-center"
             autoComplete="off"
             min="0"
           />
-        </div>
-        <div className="mb-4 w-full">
+        </div>        <div className="mb-4 w-full">
           <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="cantidad">
             Cantidad
           </label>
@@ -273,10 +279,24 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
             id="cantidad"
             name="cantidad"
             value={form.cantidad}
-            onChange={handleCantidadChange}
+            onChange={handleQuantityChange}
             className="w-full px-8 py-3 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg text-center"
             autoComplete="off"
             min="0"
+          />
+        </div>
+        <div className="mb-4 w-full">
+          <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="gramaje">
+            Gramaje
+          </label>
+          <input
+            type="text"
+            id="gramaje"
+            name="gramaje"
+            value={form.gramaje}
+            onChange={handleChange}
+            className="w-full px-8 py-3 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg text-center"
+            autoComplete="off"
           />
         </div>
         <div className="mb-4 w-full">
@@ -318,8 +338,7 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
             autoComplete="off"
             min="0"
           />
-        </div>
-        <div className="mb-6 w-full">
+        </div>        <div className="mb-6 w-full">
           <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="stock">
             Stock
           </label>
@@ -332,8 +351,7 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
             className="w-full px-8 py-3 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg text-center"
             autoComplete="off"
             min="0"
-          />
-        </div>
+          />        </div>
         <div className="mb-4 w-full relative" id="bodega-dropdown">
           <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="bodega">
             Bodega
@@ -358,32 +376,28 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
                     key={`cellar-${cellar.id}-${index}`}
                     className="p-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center"
                   >
-                    <span>{cellar.cellarName}</span>
-                    <input
+                    <span>{cellar.cellarName}</span>                    <input
                       type="number"
                       placeholder="Cantidad"
                       className="ml-2 w-20 px-2 py-1 border rounded"
-                      value={bodegasSeleccionadas.find((b) => b.bodega === cellar.cellarName)?.cantidad || ""}
+                      value={selectedWarehouses.find((w) => w.warehouse === cellar.cellarName)?.quantity || ""}
                       onChange={(e) => {
-                        const cantidad = e.target.value;
-                        agregarBodegaDesdeDropdown(cellar, cantidad);
+                        const quantity = e.target.value;
+                        addWarehouseFromDropdown(cellar, quantity);
                       }}
                     />
                   </li>
               ))}
             </ul>
           )}
-        </div>
-
-        <div className="mb-4 w-full">
-          <h3 className="text-green-400 mb-2 text-base sm:text-lg">Bodegas Seleccionadas</h3>
-          <ul className="list-disc pl-5">
-            {bodegasSeleccionadas.map((bodega, index) => (
+        </div>        <div className="mb-4 w-full">
+          <h3 className="text-green-400 mb-2 text-base sm:text-lg">Bodegas Seleccionadas</h3>          <ul className="list-disc pl-5">
+            {selectedWarehouses.map((warehouse, index) => (
               <li key={index} className="flex justify-between items-center">
-                <span className="text-white">{bodega.bodega} - Cantidad: {bodega.cantidad}</span>
+                <span className="text-white">{warehouse.warehouse} - Cantidad: {warehouse.quantity}</span>
                 <button
                   type="button"
-                  onClick={() => setBodegasSeleccionadas((prev) => prev.filter((_, i) => i !== index))}
+                  onClick={() => setSelectedWarehouses((prev) => prev.filter((_, i) => i !== index))}
                   className="text-red-500 hover:underline"
                 >
                   Eliminar
@@ -392,6 +406,35 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
             ))}
           </ul>
         </div>
+
+        {/* Sección del Código de Barras - Tercera columna */}
+        {form.codigo && (
+          <div className="mb-4 w-full">
+            <label className="block text-green-400 mb-2 text-base sm:text-lg">
+              Código de Barras
+            </label>
+            <div className="bg-white p-4 rounded-xl border border-green-600">
+              {generatingBarcode ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mr-3"></div>
+                  <span className="text-green-800 text-sm">Generando...</span>
+                </div>
+              ) : form.codigoBarras ? (
+                <BarcodeGenerator 
+                  value={form.codigoBarras}
+                  className="w-full"
+                  width={1.5}
+                  height={60}
+                  fontSize={14}
+                />
+              ) : (
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  Se generará automáticamente
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {error && <div className="mb-4 text-red-400 text-center text-sm w-full">{error}</div>}
         {success && <div className="mb-4 text-green-400 text-center text-sm w-full">{success}</div>}
         </div>
