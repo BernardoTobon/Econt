@@ -461,14 +461,36 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-green-100 px-2 sm:px-4">
-      <form
+    <div className="flex items-center justify-center min-h-screen bg-green-100 px-2 sm:px-4">      <form
         onSubmit={handleSubmit}
         className="bg-green-950 bg-opacity-80 p-8 sm:p-12 rounded-2xl shadow-xl w-full max-w-4xl border border-green-500 flex flex-col items-center"
       >
-        <h2 className="text-2xl sm:text-3xl font-bold text-green-300 mb-6 text-center tracking-widest">
-          Registrar Producto
-        </h2>
+        <div className="flex flex-col sm:flex-row items-center justify-between w-full mb-6 gap-4">
+          <h2 className="text-2xl sm:text-3xl font-bold text-green-300 text-center tracking-widest">
+            Registrar Producto
+          </h2>
+          <div className="flex flex-col items-center">
+            <input
+              type="file"
+              id="excel-import"
+              accept=".xlsx,.xls"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <label
+              htmlFor="excel-import"
+              className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 via-blue-400 to-blue-300 text-blue-950 font-bold hover:from-blue-400 hover:to-blue-500 transition cursor-pointer text-sm text-center flex items-center justify-center gap-2 whitespace-nowrap"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+              Importar desde Excel
+            </label>
+            <p className="text-green-300 text-xs mt-1 text-center">
+              Formatos: .xlsx, .xls
+            </p>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
           <div className="mb-4 w-full">
           <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="codigo">
@@ -694,10 +716,8 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
           </div>
         )}        {error && <div className="mb-4 text-red-400 text-center text-sm w-full">{error}</div>}
         {success && <div className="mb-4 text-green-400 text-center text-sm w-full">{success}</div>}
-        </div>
-
-        {/* Botones de acción */}
-        <div className="flex flex-col sm:flex-row gap-4 items-center">
+        </div>        {/* Botones de acción */}
+        <div className="flex justify-center">
           <button
             type="submit"
             disabled={loading}
@@ -705,28 +725,6 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
           >
             {loading ? "Registrando..." : "Registrar"}
           </button>
-
-          <div className="flex flex-col items-center">
-            <input
-              type="file"
-              id="excel-import"
-              accept=".xlsx,.xls"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <label
-              htmlFor="excel-import"
-              className="w-64 py-2 rounded-lg bg-gradient-to-r from-blue-500 via-blue-400 to-blue-300 text-blue-950 font-bold hover:from-blue-400 hover:to-blue-500 transition cursor-pointer text-base text-center flex items-center justify-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-              </svg>
-              Importar desde Excel
-            </label>
-            <p className="text-green-300 text-xs mt-1 text-center">
-              Formatos: .xlsx, .xls
-            </p>
-          </div>
         </div>
 
         {/* Modal de previsualización de importación */}
