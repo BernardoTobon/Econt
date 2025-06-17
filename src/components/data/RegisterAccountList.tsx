@@ -49,13 +49,12 @@ function RegisterAccountList() {
     fetchAccounts();
   };
 
-  return (
-    <div className="min-h-screen flex flex-col sm:flex-row items-start justify-start  px-2 sm:px-4 py-8 gap-6 relative" style={{ zIndex: 0, paddingLeft: '6rem' }}>
+  return (    <div className="min-h-screen flex flex-col sm:flex-row items-start justify-start px-2 sm:px-4 py-4 gap-6 relative">
       <div className="w-full sm:w-1/3">
         <RegisterAccount onRegistered={handleAccountRegistered} />
       </div>
       <div className="w-full sm:w-2/3">
-        <h2 className="text-2xl sm:text-3xl font-bold text-green-700 mb-6 text-center tracking-widest">Cuentas</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold text-green-700 mb-6 text-center">Cuentas</h2>
         <div className="w-full bg-white rounded-xl shadow-lg p-4 border border-green-400">
           <table className="w-full text-left">
             <thead>

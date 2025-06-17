@@ -81,7 +81,7 @@ function RegisterAccount({ onRegistered }: { onRegistered?: () => void }) {
   };
 
   return (
-    <div className="flex items-start justify-center px-2 sm:px-4 min-h-screen">
+    <div className="flex items-start justify-center  sm:px-4 min-h-screen">
       <form
         onSubmit={handleSubmit}
         className="bg-green-950 bg-opacity-80 p-6 sm:p-10 rounded-xl shadow-2xl w-full max-w-md border border-green-500 flex flex-col items-center mt-8"
