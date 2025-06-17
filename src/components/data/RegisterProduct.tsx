@@ -337,10 +337,10 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
             type="text"
             id="gramajePorUnidad"
             name="gramajePorUnidad"
-            value={form.gramajePorUnidad ? `${form.gramajePorUnidad} g` : 'Se calcula automáticamente'}
+            value={form.gramajePorUnidad ? `${form.gramajePorUnidad} g` : 'Calculo automático'}
             className="w-full px-8 py-3 rounded-xl bg-gray-100 text-gray-600 border border-green-600 text-base sm:text-lg text-center cursor-not-allowed"
             disabled
-            placeholder="Se calcula automáticamente"
+            placeholder="Calculo automático"
           />
         </div>
         <div className="mb-4 w-full">
