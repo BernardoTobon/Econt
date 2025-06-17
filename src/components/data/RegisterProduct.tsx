@@ -10,6 +10,7 @@ interface ProductForm {
   bodega: string;
   cantidad: string;
   gramaje: string;
+  gramajePorUnidad: string;
   stock: string;
   codigoBarras: string;
 }
@@ -34,6 +35,7 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
     bodega: "",
     cantidad: "",
     gramaje: "",
+    gramajePorUnidad: "",
     stock: "",
     codigoBarras: "",
   });
@@ -98,13 +100,36 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
       document.removeEventListener("click", handleClickOutside);
     };  }, [showCellarDropdown]);
 
+  const calculateGramajePorUnidad = (gramaje: string, cantidad: string): string => {
+    const gramajeNum = parseFloat(gramaje);
+    const cantidadNum = parseFloat(cantidad);
+    
+    if (gramajeNum > 0 && cantidadNum > 0) {
+      return (gramajeNum / cantidadNum).toFixed(2);
+    }
+    return "";
+  };
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    // Actualizar el campo correspondiente
+    const updatedForm = { ...form, [name]: value };
+    
+    // Si se está cambiando gramaje o cantidad, recalcular gramaje por unidad
+    if (name === 'gramaje' || name === 'cantidad') {
+      const gramajePorUnidad = calculateGramajePorUnidad(
+        name === 'gramaje' ? value : form.gramaje,
+        name === 'cantidad' ? value : form.cantidad
+      );
+      updatedForm.gramajePorUnidad = gramajePorUnidad;
+    }
+    
+    setForm(updatedForm);
     
     // Si se está cambiando el código del producto, generar nuevo código de barras
-    if (e.target.name === 'codigo' && e.target.value.trim()) {
-      generateBarcodeForProduct(e.target.value.trim());
-    } else if (e.target.name === 'codigo' && !e.target.value.trim()) {
+    if (name === 'codigo' && value.trim()) {
+      generateBarcodeForProduct(value.trim());
+    } else if (name === 'codigo' && !value.trim()) {
       // Si se borra el código, limpiar también el código de barras
       setForm(prev => ({ ...prev, codigoBarras: "" }));
     }
@@ -137,17 +162,20 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
   });
 };
 
-
  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const rawCantidad = e.target.value.replace(/[^\d]/g, "");
   const cantidad = parseFloat(rawCantidad);
   const totalCompra = parseFloat(form.valorTotalCompra);
   const unitario = cantidad > 0 ? (totalCompra / cantidad).toFixed(0) : "0";
 
+  // Calcular gramaje por unidad
+  const gramajePorUnidad = calculateGramajePorUnidad(form.gramaje, rawCantidad);
+
   setForm({
     ...form,
     cantidad: rawCantidad,
     valorUnitarioCompra: unitario,
+    gramajePorUnidad: gramajePorUnidad,
   });
 };
 
@@ -183,6 +211,7 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
         stock: Number(form.stock), // Aseguramos que el stock se registre
         codigoBarras: form.codigoBarras, // Guardamos el código de barras
         gramaje: form.gramaje,
+        gramajePorUnidad: Number(form.gramajePorUnidad), // Guardamos gramaje por unidad
         createdAt: new Date(),
       });if (selectedWarehouses.length === 0) {
         selectedWarehouses.push({ warehouse: form.bodega || "Bodega", quantity: form.cantidad || "0" });
@@ -207,7 +236,7 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
           console.error(`No se encontró la bodega con el nombre: ${warehouse.warehouse}`);
         }
       }      setSuccess("¡Producto registrado exitosamente!");
-      setForm({ codigo: "", nombre: "", valorUnitarioCompra: "", valorUnitarioVenta: "", valorTotalCompra: "", bodega: "", cantidad: "", gramaje: "", stock: "", codigoBarras: "" });
+      setForm({ codigo: "", nombre: "", valorUnitarioCompra: "", valorUnitarioVenta: "", valorTotalCompra: "", bodega: "", cantidad: "", gramaje: "", gramajePorUnidad: "", stock: "", codigoBarras: "" });
       setSelectedWarehouses([]); // Limpiar bodegas seleccionadas
       if (onProductRegistered) onProductRegistered({ id: productRef.id, ...form });
       if (onCloseModal) onCloseModal();
@@ -284,19 +313,34 @@ const RegisterProduct: React.FC<RegisterProductProps> = ({ onCloseModal, onProdu
             autoComplete="off"
             min="0"
           />
-        </div>
-        <div className="mb-4 w-full">
+        </div>        <div className="mb-4 w-full">
           <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="gramaje">
-            Gramaje
+            Gramaje Total
           </label>
           <input
-            type="text"
+            type="number"
+            step="0.1"
             id="gramaje"
             name="gramaje"
             value={form.gramaje}
             onChange={handleChange}
             className="w-full px-8 py-3 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg text-center"
             autoComplete="off"
+            placeholder="Ej: 80.5"
+          />
+        </div>
+        <div className="mb-4 w-full">
+          <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="gramajePorUnidad">
+            Gramaje por Unidad
+          </label>
+          <input
+            type="text"
+            id="gramajePorUnidad"
+            name="gramajePorUnidad"
+            value={form.gramajePorUnidad ? `${form.gramajePorUnidad} g` : 'Se calcula automáticamente'}
+            className="w-full px-8 py-3 rounded-xl bg-gray-100 text-gray-600 border border-green-600 text-base sm:text-lg text-center cursor-not-allowed"
+            disabled
+            placeholder="Se calcula automáticamente"
           />
         </div>
         <div className="mb-4 w-full">
