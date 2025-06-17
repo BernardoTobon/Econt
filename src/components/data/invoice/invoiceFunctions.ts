@@ -347,6 +347,19 @@ export const fetchClients = async (setAllClients: (clients: any[]) => void) => {
   }
 };
 
+export const fetchSuppliers = async (setAllSuppliers: (suppliers: any[]) => void) => {
+  try {
+    const querySnapshot = await getDocs(collection(db, "suppliers"));
+    const suppliers = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setAllSuppliers(suppliers);
+  } catch (error) {
+    console.error("Error al obtener los proveedores:", error);
+  }
+};
+
 export const fetchProducts = async (setAllProducts: (products: any[]) => void) => {
   try {
     const querySnapshot = await getDocs(collection(db, "products"));
@@ -451,5 +464,165 @@ export const actualizarCuentaSeleccionada = async (
     }
   } catch (error) {
     console.error("Error al actualizar la cuenta seleccionada:", error);
+  }
+};
+
+// ===== FUNCIONES PARA COMPRAS =====
+
+// Función para calcular el costo total de la compra (igual que calculateCost pero con nombres más claros)
+export const calculatePurchaseCost = async (productos: any[]) => {
+  return await calculateCost(productos); // Reutiliza la función existente
+};
+
+// Función para aumentar productos en el inventario (opuesto a descontarProductos)
+export const aumentarProductos = async (productosComprados: any[]) => {
+  try {
+    for (const producto of productosComprados) {
+      const codigoProducto = producto.id;
+      const cantidadAAgregar = producto.cantidad;
+      const bodegaId = producto.bodega;
+
+      if (!codigoProducto || !cantidadAAgregar || !bodegaId) {
+        console.warn("Datos incompletos para aumentar producto:", producto);
+        continue;
+      }
+
+      // Buscar el producto en la subcolección productLoc de la bodega
+      const productLocCollection = collection(db, `cellars/${bodegaId}/productLoc`);
+      const querySnapshot = await getDocs(productLocCollection);
+      
+      const productDoc = querySnapshot.docs.find(
+        (doc) => doc.data().codigoProducto === codigoProducto
+      );
+
+      if (productDoc) {
+        // Si el producto existe, aumentar la cantidad
+        const currentData = productDoc.data();
+        const cantidadActual = currentData.cantidad || 0;
+        const nuevaCantidad = cantidadActual + cantidadAAgregar;
+
+        const productDocRef = doc(db, `cellars/${bodegaId}/productLoc`, productDoc.id);
+        await updateDoc(productDocRef, { cantidad: nuevaCantidad });
+        
+        console.log(`Cantidad aumentada para ${producto.nombreDelProducto} en bodega ${bodegaId}: ${cantidadActual} -> ${nuevaCantidad}`);
+      } else {
+        // Si el producto no existe en la bodega, crearlo
+        await addDoc(productLocCollection, {
+          codigoProducto: codigoProducto,
+          cantidad: cantidadAAgregar,
+          nombreProducto: producto.nombreDelProducto
+        });
+        
+        console.log(`Producto ${producto.nombreDelProducto} agregado a bodega ${bodegaId} con cantidad: ${cantidadAAgregar}`);
+      }
+    }
+  } catch (error) {
+    console.error("Error al aumentar productos en el inventario:", error);
+  }
+};
+
+// Función para registrar la compra en la colección purchases
+export const registerPurchaseWithDetails = async (productos: any[], totalCompra: number) => {
+  try {
+    const purchaseData = {
+      date: new Date(),
+      products: productos.map(producto => ({
+        id: producto.id,
+        nombreDelProducto: producto.nombreDelProducto,
+        cantidad: producto.cantidad,
+        gramajePorUnidad: producto.gramajePorUnidad,
+        gramajeTotal: producto.gramajeTotal,
+        precioUnitario: producto.precioDeVenta,
+        iva: producto.iva,
+        total: producto.total,
+        bodega: producto.bodega
+      })),
+      totalAmount: totalCompra,
+      timestamp: new Date().toISOString()
+    };
+
+    const docRef = await addDoc(collection(db, "purchases"), purchaseData);
+    console.log("Compra registrada con ID: ", docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error("Error al registrar la compra:", error);
+    throw error;
+  }
+};
+
+// Función para aumentar gramaje de los productos (opuesto a descontarGramajeProductos)
+export const aumentarGramajeProductos = async (productos: any[]) => {
+  try {
+    for (const producto of productos) {
+      const codigoProducto = producto.id;
+      const gramajeAAgregar = producto.cantidad * producto.gramajePorUnidad;
+
+      if (!codigoProducto || gramajeAAgregar <= 0) {
+        console.warn("Datos inválidos para aumentar gramaje", { producto, gramajeAAgregar });
+        continue;
+      }
+
+      // Buscar el producto en la colección products
+      const productCollection = collection(db, "products");
+      const querySnapshot = await getDocs(productCollection);
+      
+      const productDoc = querySnapshot.docs.find(
+        (doc) => doc.data().codigo === codigoProducto
+      );
+
+      if (productDoc) {
+        const productData = productDoc.data();
+        const gramajeActual = parseFloat(productData.gramaje) || 0;
+        const nuevoGramaje = gramajeActual + gramajeAAgregar;
+
+        const productDocRef = doc(db, "products", productDoc.id);
+        await updateDoc(productDocRef, { gramaje: nuevoGramaje.toString() });
+        console.log(`Gramaje aumentado para el producto ${producto.nombreDelProducto}: ${gramajeActual} -> ${nuevoGramaje}`);
+      } else {
+        console.error(`Producto ${producto.nombreDelProducto} no encontrado en la colección products`);
+      }
+    }
+  } catch (error) {
+    console.error("Error al aumentar gramaje de productos:", error);
+  }
+};
+
+// Función para descontar el monto de la cuenta seleccionada (opuesto a actualizarCuentaSeleccionada)
+export const descontarCuentaSeleccionada = async (
+  nombreCuenta: string,
+  montoADescontar: number
+) => {
+  try {
+    if (!nombreCuenta || montoADescontar <= 0) {
+      console.error("Datos inválidos para descontar de la cuenta", { nombreCuenta, montoADescontar });
+      return;
+    }
+
+    // Buscar la cuenta en la colección account
+    const accountCollection = collection(db, "account");
+    const querySnapshot = await getDocs(accountCollection);
+    
+    const accountDoc = querySnapshot.docs.find(
+      (doc) => doc.data().accountName === nombreCuenta
+    );
+
+    if (accountDoc) {
+      const accountData = accountDoc.data();
+      const montoActual = accountData.initialAmount || 0;
+      const nuevoMonto = Math.max(0, montoActual - montoADescontar); // No permitir valores negativos
+
+      const accountDocRef = doc(db, "account", accountDoc.id);
+      await updateDoc(accountDocRef, { initialAmount: nuevoMonto });
+      
+      console.log(`Cuenta descontada: ${nombreCuenta}. Monto anterior: ${montoActual}, Monto descontado: ${montoADescontar}, Nuevo monto: ${nuevoMonto}`);
+      
+      if (montoActual < montoADescontar) {
+        console.warn(`El monto a descontar (${montoADescontar}) es mayor que el saldo actual (${montoActual}). El saldo se estableció en 0.`);
+      }
+    } else {
+      console.error(`Cuenta no encontrada: ${nombreCuenta}`);
+    }
+  } catch (error) {
+    console.error("Error al descontar de la cuenta seleccionada:", error);
   }
 };
