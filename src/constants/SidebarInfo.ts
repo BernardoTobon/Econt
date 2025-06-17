@@ -1,4 +1,4 @@
-import { bankIcon, contactIcon, homeIcon, incomeIcon, inventaryIcon } from "@/icons/Icons";
+import { bankIcon, contactIcon, homeIcon, incomeIcon, inventaryIcon, purchaseIcon } from "@/icons/Icons";
 
 
 export const SideBarInfo = [
@@ -7,10 +7,6 @@ export const SideBarInfo = [
         icon: homeIcon,
         label: "Dashboard",        links: [
             {label: "Inicio", href: "/dashboard"},
-            {label: "Ventas", href: "/sales"},
-            {label: "Compras", href: "/purchases"},
-            {label: "Gastos", href: "/expenses"},
-            {label: "Ingresos", href: "#"},
         ]
     },
     {
@@ -31,7 +27,19 @@ export const SideBarInfo = [
             {label: "Factura de ventas", href: "/invoice"},
             {label: "Pagos recibidos", href:"#"},
             {label: "Cotizaciones", href:"#"},
-            {label: "Resimiones", href:"#"}
+            {label: "Resimiones", href:"#"},
+            {label: "Historial de Ventas", href: "/sales"},
+        ]
+    },
+    {
+        section: "Compras",
+        icon: purchaseIcon,
+        label: "Compras",
+        links: [
+            {label: "Factura de compras", href: "/purchase-invoice"},
+            {label: "Pagos realizados", href:"#"},
+            {label: "Historial de Compras", href: "/purchases"},
+            {label: "Gastos", href: "/expenses"},
         ]
     },
     {
@@ -40,7 +48,6 @@ export const SideBarInfo = [
         label: "Bancos",
         links: [
             {label: "Cuentas bancarias", href: "/account"},
-            {label: "Conciliaciones bancarias", href: "#"},
         ]
     },
     {
