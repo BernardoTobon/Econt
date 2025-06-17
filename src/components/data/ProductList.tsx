@@ -5,6 +5,7 @@ import { app } from "../../firebase/Index";
 import { formatCurrencyCOP } from "../../utils/formatCurrency";
 import RegisterProduct from "./RegisterProduct";
 import { trashIcon } from "@/icons/Icons";
+import * as XLSX from "xlsx";
 
 interface Product {
   id: string;
@@ -49,10 +50,129 @@ const ProductList: React.FC = () => {
   const closeAddProductModal = () => {
     setShowAddProductModal(false);
   };
-
   const handleProductCreated = (newProduct: Product) => {
     setProducts((prevProducts) => [...prevProducts, newProduct]);
     setShowAddProductModal(false);
+  };
+  // Función para exportar a Excel
+  const exportToExcel = () => {
+    const filteredProducts = products.filter((product) => {
+      return (
+        product.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.gramaje.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    });    const dataForExcel = filteredProducts.map((product) => ({
+      "Código": product.codigo,
+      "Nombre": product.nombre,
+      "Gramaje": product.gramaje,
+      "Valor unitario compra": product.valorUnitarioCompra,
+      "Valor unitario venta": product.valorUnitarioVenta,
+      "Cantidad": product.cantidad,
+      "Stock": product.stock,
+      "Valor inventario (compra)": product.valorUnitarioCompra * product.cantidad,
+      "Valor inventario (venta)": product.valorUnitarioVenta * product.cantidad
+    }));
+
+    // Agregar fila con el valor total del inventario
+    const totalInventoryValue = filteredProducts.reduce((total, product) => 
+      total + (product.valorUnitarioCompra * product.cantidad), 0
+    );
+    const totalInventoryValueSale = filteredProducts.reduce((total, product) => 
+      total + (product.valorUnitarioVenta * product.cantidad), 0
+    );    dataForExcel.push({
+      "Código": "",
+      "Nombre": "VALOR TOTAL DEL INVENTARIO",
+      "Gramaje": "",
+      "Valor unitario compra": 0,
+      "Valor unitario venta": 0,
+      "Cantidad": 0,
+      "Stock": 0,
+      "Valor inventario (compra)": totalInventoryValue,
+      "Valor inventario (venta)": totalInventoryValueSale
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
+    
+    // Función para calcular el ancho de columna basado en el contenido
+    const getColumnWidth = (data: any[], key: string) => {
+      const lengths = data.map(row => {
+        const value = row[key] ? row[key].toString() : '';
+        return value.length;
+      });
+      // Incluir también la longitud del encabezado
+      lengths.push(key.length);
+      const maxLength = Math.max(...lengths);
+      // Agregar un poco de padding y limitar el ancho máximo
+      return Math.min(Math.max(maxLength + 2, 10), 50);
+    };
+
+    // Configurar el ancho de las columnas
+    const columnKeys = Object.keys(dataForExcel[0] || {});
+    const columnWidths = columnKeys.map(key => ({
+      wch: getColumnWidth(dataForExcel, key)
+    }));
+    worksheet['!cols'] = columnWidths;
+
+    // Aplicar formato de tabla
+    if (dataForExcel.length > 0) {
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+      
+      // Aplicar estilo a los encabezados
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const headerCell = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!worksheet[headerCell]) continue;
+        
+        worksheet[headerCell].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4F7942" } }, // Verde similar al diseño
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        };
+      }      // Aplicar bordes a todas las celdas de datos
+      for (let row = range.s.r + 1; row <= range.e.r; row++) {
+        for (let col = range.s.c; col <= range.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!worksheet[cellAddress]) continue;
+          
+          const isLastRow = row === range.e.r; // Fila de totales
+          
+          worksheet[cellAddress].s = {
+            border: {
+              top: { style: "thin", color: { rgb: "CCCCCC" } },
+              bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+              left: { style: "thin", color: { rgb: "CCCCCC" } },
+              right: { style: "thin", color: { rgb: "CCCCCC" } }
+            },
+            alignment: { vertical: "center" },
+            // Destacar la fila de totales
+            ...(isLastRow && {
+              font: { bold: true },
+              fill: { fgColor: { rgb: "F0F8E8" } }
+            })
+          };
+        }
+      }
+
+      // Configurar el rango como tabla
+      if (worksheet['!ref']) {
+        worksheet['!autofilter'] = { ref: worksheet['!ref'] };
+      }
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario");
+
+    const today = new Date();
+    const dateString = today.toISOString().split('T')[0];
+    const fileName = `inventario_${dateString}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
   };
 
   useEffect(() => {
@@ -123,14 +243,21 @@ const ProductList: React.FC = () => {
         />
       </label>
         <label className="text-green-700 font-bold flex justify-end">
-          VALOR DEL INVENTARIO: {formatCurrencyCOP(inventoryValue)}
-        </label>      </div>
-      <button
-        className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-        onClick={handleAddProductClick}
-      >
-        Registrar Producto
-      </button>
+          VALOR DEL INVENTARIO: {formatCurrencyCOP(inventoryValue)}        </label>      </div>
+      <div className="absolute top-4 right-4 flex gap-2">
+        <button
+          onClick={exportToExcel}
+          className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 via-blue-400 to-blue-300 text-blue-950 font-bold hover:from-blue-400 hover:to-blue-500 transition text-sm shadow-lg border border-blue-600 whitespace-nowrap"
+        >
+          Exportar Excel
+        </button>
+        <button
+          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+          onClick={handleAddProductClick}
+        >
+          Registrar Producto
+        </button>
+      </div>
       <table className="w-full text-left min-w-[900px]">
         <thead>
           <tr className="text-green-700 border-b border-green-200">

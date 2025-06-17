@@ -4,6 +4,7 @@ import { getFirestore, collection, getDocs, doc, updateDoc } from "firebase/fire
 import { app } from "../../firebase/Index";
 import Modal from "./Modal";
 import AddClient from "./AddClient";
+import * as XLSX from "xlsx";
 
 interface Client {
   id: string;
@@ -40,7 +41,6 @@ const ClientList: React.FC = () => {
   React.useEffect(() => {
     fetchClients();
   }, []);
-
   // Guardar cambios de edición
   const handleUpdateClient = async (updatedData: any) => {
     if (!editClient) return;
@@ -50,6 +50,105 @@ const ClientList: React.FC = () => {
     setModalOpen(false);
     setEditClient(null);
     fetchClients();
+  };
+  // Función para exportar a Excel
+  const exportToExcel = () => {
+    // Filtrar los datos según la búsqueda actual
+    const filteredClients = clients.filter(client =>
+      client.fullName.toLowerCase().includes(search.toLowerCase()) ||
+      client.idNumber.toLowerCase().includes(search.toLowerCase())
+    );
+
+    // Preparar los datos para Excel
+    const dataForExcel = filteredClients.map((client) => ({
+      "Nombre completo / Razón social": client.fullName,
+      "Tipo de identificación": client.idType,
+      "Número de identificación": client.idNumber,
+      "Tipo de persona": client.personType,
+      "Responsabilidad tributaria": client.taxResponsibility,
+      "Ciudad": client.city || "",
+      "Dirección": client.address || "",
+      "Código postal": client.postalCode || "",
+      "Email": client.email || ""
+    }));
+
+    // Crear el libro de trabajo
+    const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
+    
+    // Función para calcular el ancho de columna basado en el contenido
+    const getColumnWidth = (data: any[], key: string) => {
+      const lengths = data.map(row => {
+        const value = row[key] ? row[key].toString() : '';
+        return value.length;
+      });
+      // Incluir también la longitud del encabezado
+      lengths.push(key.length);
+      const maxLength = Math.max(...lengths);
+      // Agregar un poco de padding y limitar el ancho máximo
+      return Math.min(Math.max(maxLength + 2, 10), 50);
+    };
+
+    // Configurar el ancho de las columnas
+    const columnKeys = Object.keys(dataForExcel[0] || {});
+    const columnWidths = columnKeys.map(key => ({
+      wch: getColumnWidth(dataForExcel, key)
+    }));
+    worksheet['!cols'] = columnWidths;
+
+    // Aplicar formato de tabla
+    if (dataForExcel.length > 0) {
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+      
+      // Aplicar estilo a los encabezados
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const headerCell = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!worksheet[headerCell]) continue;
+        
+        worksheet[headerCell].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4F7942" } }, // Verde similar al diseño
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        };
+      }
+
+      // Aplicar bordes a todas las celdas de datos
+      for (let row = range.s.r + 1; row <= range.e.r; row++) {
+        for (let col = range.s.c; col <= range.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!worksheet[cellAddress]) continue;
+          
+          worksheet[cellAddress].s = {
+            border: {
+              top: { style: "thin", color: { rgb: "CCCCCC" } },
+              bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+              left: { style: "thin", color: { rgb: "CCCCCC" } },
+              right: { style: "thin", color: { rgb: "CCCCCC" } }
+            },
+            alignment: { vertical: "center" }
+          };
+        }
+      }      // Configurar el rango como tabla
+      if (worksheet['!ref']) {
+        worksheet['!autofilter'] = { ref: worksheet['!ref'] };
+      }
+    }
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Clientes");
+
+    // Generar el nombre del archivo con la fecha actual
+    const today = new Date();
+    const dateString = today.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+    const fileName = `clientes_${dateString}.xlsx`;
+
+    // Descargar el archivo
+    XLSX.writeFile(workbook, fileName);
   };
 
   useEffect(() => {
@@ -67,16 +166,23 @@ const ClientList: React.FC = () => {
     fetchClients();
   }, []);
 
-  return (
-    <div className="w-full bg-white rounded-xl shadow-lg p-4 border border-green-400 overflow-x-auto">
+  return (    <div className="w-full bg-white rounded-xl shadow-lg p-4 border border-green-400 overflow-x-auto">
       <div className="flex justify-between items-center mb-6 relative">
         <h2 className="text-2xl sm:text-3xl font-bold text-green-700 text-center tracking-widest w-full">Clientes</h2>
-        <a
-          href="/add-client"
-          className="absolute right-0 px-5 py-2 rounded-lg bg-gradient-to-r from-green-500 via-green-400 to-green-300 text-green-950 font-bold hover:from-green-400 hover:to-green-500 transition text-sm shadow-lg border border-green-600 whitespace-nowrap"
-        >
-          Registrar cliente
-        </a>
+        <div className="absolute right-0 flex gap-2">
+          <button
+            onClick={exportToExcel}
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 via-blue-400 to-blue-300 text-blue-950 font-bold hover:from-blue-400 hover:to-blue-500 transition text-sm shadow-lg border border-blue-600 whitespace-nowrap"
+          >
+            Exportar Excel
+          </button>
+          <a
+            href="/add-client"
+            className="px-5 py-2 rounded-lg bg-gradient-to-r from-green-500 via-green-400 to-green-300 text-green-950 font-bold hover:from-green-400 hover:to-green-500 transition text-sm shadow-lg border border-green-600 whitespace-nowrap"
+          >
+            Registrar cliente
+          </a>
+        </div>
       </div>
       {/* Buscador */}
       <div className="flex justify-end mb-4">
