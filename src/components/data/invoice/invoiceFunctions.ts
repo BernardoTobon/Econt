@@ -8,6 +8,8 @@ interface ProductInvoice {
   id: string;
   nombreDelProducto: string;
   cantidad: number;
+  gramajePorUnidad: number;
+  gramajeTotal: number;
   precioDeVenta: number;
   iva: number;
   total: number;
@@ -300,10 +302,10 @@ export const hideInteractiveElements = (element: HTMLElement) => {
 
 export const hideBodegaAndAccionColumns = () => {
   const bodegaHeaders = document.querySelectorAll(
-    "th:nth-child(5), td:nth-child(5)"
+    "th:nth-child(6), td:nth-child(6)"
   );
   const accionHeaders = document.querySelectorAll(
-    "th:nth-child(9), td:nth-child(9)"
+    "th:nth-child(10), td:nth-child(10)"
   );
 
   bodegaHeaders.forEach((el) => {
@@ -317,10 +319,10 @@ export const hideBodegaAndAccionColumns = () => {
 
 export const showBodegaAndAccionColumns = () => {
   const bodegaHeaders = document.querySelectorAll(
-    "th:nth-child(5), td:nth-child(5)"
+    "th:nth-child(6), td:nth-child(6)"
   );
   const accionHeaders = document.querySelectorAll(
-    "th:nth-child(9), td:nth-child(9)"
+    "th:nth-child(10), td:nth-child(10)"
   );
 
   bodegaHeaders.forEach((el) => {
@@ -362,7 +364,92 @@ export const initializeProduct = (): ProductInvoice => ({
   id: "",
   nombreDelProducto: "",
   cantidad: 1,
+  gramajePorUnidad: 0,
+  gramajeTotal: 0,
   precioDeVenta: 0,
   iva: 19,
   total: 0,
 });
+
+export const descontarGramajeProductos = async (
+  productos: { id: string; cantidad: number; gramajePorUnidad: number; nombreDelProducto: string }[]
+) => {
+  try {
+    for (const producto of productos) {
+      const codigoProducto = producto.id;
+      const gramajeADescontar = producto.cantidad * producto.gramajePorUnidad;
+
+      if (!codigoProducto || gramajeADescontar <= 0) {
+        console.error(`Datos inválidos para descontar gramaje del producto ${producto.nombreDelProducto}`);
+        continue;
+      }
+
+      // Buscar el producto en la colección products
+      const productCollection = collection(db, "products");
+      const querySnapshot = await getDocs(productCollection);
+      
+      const productDoc = querySnapshot.docs.find(
+        (doc) => doc.data().codigo === codigoProducto
+      );
+
+      if (productDoc) {
+        const productData = productDoc.data();
+        const gramajeActual = parseFloat(productData.gramaje) || 0;
+        const nuevoGramaje = gramajeActual - gramajeADescontar;
+
+        if (nuevoGramaje < 0) {
+          console.warn(`Gramaje insuficiente para el producto ${producto.nombreDelProducto}. Gramaje actual: ${gramajeActual}, a descontar: ${gramajeADescontar}`);
+          // Decidir si continuar o establecer en 0
+          const gramajeDescontado = Math.max(0, nuevoGramaje);
+          
+          const productDocRef = doc(db, "products", productDoc.id);
+          await updateDoc(productDocRef, { gramaje: gramajeDescontado.toString() });
+          console.log(`Gramaje actualizado para el producto ${producto.nombreDelProducto}: ${gramajeDescontado}`);
+        } else {
+          const productDocRef = doc(db, "products", productDoc.id);
+          await updateDoc(productDocRef, { gramaje: nuevoGramaje.toString() });
+          console.log(`Gramaje actualizado para el producto ${producto.nombreDelProducto}: ${nuevoGramaje}`);
+        }
+      } else {
+        console.error(`Producto ${producto.nombreDelProducto} no encontrado en la colección products`);
+      }
+    }
+  } catch (error) {
+    console.error("Error al descontar gramaje de productos:", error);
+  }
+};
+
+export const actualizarCuentaSeleccionada = async (
+  nombreCuenta: string,
+  montoAAgregar: number
+) => {
+  try {
+    if (!nombreCuenta || montoAAgregar <= 0) {
+      console.error("Datos inválidos para actualizar la cuenta", { nombreCuenta, montoAAgregar });
+      return;
+    }
+
+    // Buscar la cuenta en la colección account
+    const accountCollection = collection(db, "account");
+    const querySnapshot = await getDocs(accountCollection);
+    
+    const accountDoc = querySnapshot.docs.find(
+      (doc) => doc.data().accountName === nombreCuenta
+    );
+
+    if (accountDoc) {
+      const accountData = accountDoc.data();
+      const montoActual = accountData.initialAmount || 0;
+      const nuevoMonto = montoActual + montoAAgregar;
+
+      const accountDocRef = doc(db, "account", accountDoc.id);
+      await updateDoc(accountDocRef, { initialAmount: nuevoMonto });
+      
+      console.log(`Cuenta actualizada: ${nombreCuenta}. Monto anterior: ${montoActual}, Monto agregado: ${montoAAgregar}, Nuevo monto: ${nuevoMonto}`);
+    } else {
+      console.error(`Cuenta no encontrada: ${nombreCuenta}`);
+    }
+  } catch (error) {
+    console.error("Error al actualizar la cuenta seleccionada:", error);
+  }
+};

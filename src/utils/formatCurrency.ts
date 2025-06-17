@@ -8,6 +8,39 @@ export function formatCurrencyCOP(value: string | number | undefined): string {
   return '$' + num.toLocaleString('es-CO', { maximumFractionDigits: 0 });
 }
 
+// Formatea un número para inputs con $ y separador de miles por punto sin decimales
+export function formatCurrencyInput(value: string | number | undefined): string {
+  if (value === undefined || value === null || value === '') {
+    return '';
+  }
+  
+  // Convertir a string y remover todo lo que no sea dígito
+  let num = typeof value === 'string' ? value.replace(/[^\d]/g, '') : value.toString();
+  
+  // Si está vacío después de limpiar, retornar vacío
+  if (num === '') return '';
+  
+  // Convertir a número
+  const numValue = parseInt(num, 10) || 0;
+  
+  // Si es 0, retornar vacío para no mostrar $0
+  if (numValue === 0) return '';
+  
+  // Formatear con separador de miles usando punto
+  const formatted = numValue.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  
+  return '$' + formatted;
+}
+
+// Función para limpiar el valor formateado y obtener solo el número
+export function parseCurrencyInput(value: string): number {
+  if (!value) return 0;
+  
+  // Remover $ y puntos, mantener solo dígitos
+  const cleaned = value.replace(/[^\d]/g, '');
+  return parseInt(cleaned, 10) || 0;
+}
+
 export function formatCurrencyToWords(amount: number | undefined | null): string {
   if (amount === undefined || amount === null) {
     amount = 0; 

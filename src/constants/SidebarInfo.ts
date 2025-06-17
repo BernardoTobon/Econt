@@ -9,7 +9,7 @@ export const SideBarInfo = [
             {label: "Inicio", href: "/dashboard"},
             {label: "Ventas", href: "/sales"},
             {label: "Compras", href: "/purchases"},
-            {label: "Gastos", href: "#"},
+            {label: "Gastos", href: "/expenses"},
             {label: "Ingresos", href: "#"},
         ]
     },
