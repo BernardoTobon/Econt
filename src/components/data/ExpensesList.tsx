@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { getFirestore, collection, getDocs, orderBy, query } from "firebase/firestore";
 import { app } from "../../firebase/Index";
 import { formatCurrencyInput } from "../../utils/formatCurrency";
+import * as XLSX from 'xlsx';
 
 interface Expense {
   id: string;
@@ -159,18 +160,141 @@ function ExpensesList({ refreshTrigger }: ExpensesListProps) {
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
-
   // Resetear página cuando cambien los filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchType, selectedMonth, selectedYear, showAll]);
+  }, [searchType, selectedMonth, selectedYear, showAll]);  // Función para exportar a Excel
+  const exportToExcel = () => {
+    try {
+      // Preparar los datos para Excel
+      const dataToExport = filteredExpenses.map((expense, index) => ({
+        'N°': index + 1,
+        'Fecha': formatDate(expense.date),
+        'Tipo de Gasto': expense.expenseType,
+        'Concepto': expense.concept,
+        'Valor': expense.amount,
+        'Cuenta Bancaria': expense.bankAccount
+      }));
+
+      // Crear un libro de trabajo
+      const workbook = XLSX.utils.book_new();
+      
+      // Crear la hoja de trabajo
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+      // Configurar el ancho de las columnas
+      worksheet['!cols'] = [
+        { wch: 8 },   // N°
+        { wch: 15 },  // Fecha
+        { wch: 25 },  // Tipo de Gasto
+        { wch: 50 },  // Concepto
+        { wch: 18 },  // Valor
+        { wch: 30 }   // Cuenta Bancaria
+      ];
+
+      // Obtener el rango de datos
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+        // Configurar filtros automáticos
+      worksheet['!autofilter'] = { ref: `A1:${XLSX.utils.encode_col(range.e.c)}${range.e.r + 1}` };
+
+      // APLICAR COLORES A LOS ENCABEZADOS
+      const headerCells = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1'];
+      headerCells.forEach(cellAddr => {
+        if (worksheet[cellAddr]) {
+          worksheet[cellAddr].s = {
+            font: { bold: true, color: { rgb: "FFFFFF" } },
+            fill: { patternType: "solid", fgColor: { rgb: "2E8B57" } },
+            alignment: { horizontal: "center", vertical: "center" }
+          };
+        }
+      });
+
+      // Formato para columna de valores
+      for (let row = 2; row <= range.e.r + 1; row++) {
+        const cellAddr = `E${row}`;
+        if (worksheet[cellAddr]) {
+          worksheet[cellAddr].s = {
+            numFmt: '"$"#,##0',
+            alignment: { horizontal: "right" }
+          };
+        }
+      }
+
+      // AGREGAR FILA DE TOTALES CON COLOR
+      const totalRow = range.e.r + 2;
+      const totalAmount = filteredExpenses.reduce((total, expense) => total + expense.amount, 0);
+      
+      // Celda "TOTAL:"
+      const totalLabelCell = `D${totalRow}`;
+      worksheet[totalLabelCell] = {
+        v: 'TOTAL:',
+        t: 's',
+        s: {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { patternType: "solid", fgColor: { rgb: "228B22" } },
+          alignment: { horizontal: "right", vertical: "center" }
+        }
+      };
+
+      // Celda del valor total
+      const totalValueCell = `E${totalRow}`;
+      worksheet[totalValueCell] = {
+        v: totalAmount,
+        t: 'n',
+        s: {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { patternType: "solid", fgColor: { rgb: "228B22" } },
+          numFmt: '"$"#,##0',
+          alignment: { horizontal: "right", vertical: "center" }
+        }
+      };
+
+      // Actualizar el rango para incluir la fila de totales
+      worksheet['!ref'] = `A1:F${totalRow}`;
+
+      // Agregar la hoja al libro
+      const sheetName = showAll 
+        ? 'Todos los Gastos' 
+        : `Gastos ${months.find(m => m.value === selectedMonth)?.label} ${selectedYear}`;
+      
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+
+      // Generar nombre del archivo
+      const currentDate = new Date();
+      const timestamp = currentDate.toISOString().slice(0, 19).replace(/:/g, '-');
+      const fileName = showAll 
+        ? `Gastos_Todos_${timestamp}.xlsx`
+        : `Gastos_${months.find(m => m.value === selectedMonth)?.label}_${selectedYear}_${timestamp}.xlsx`;
+
+      // Descargar el archivo
+      XLSX.writeFile(workbook, fileName);
+
+      alert(`Excel exportado: ${fileName}`);
+      
+    } catch (error) {
+      console.error('Error al exportar a Excel:', error);
+      alert('Error al exportar el archivo. Por favor, intenta de nuevo.');
+    }
+  };
 
   return (
     <div className="w-full bg-white rounded-xl shadow-lg p-4 border border-green-400 overflow-x-auto">      <div className="flex justify-between items-center mb-6 relative">
         <h2 className="text-2xl sm:text-3xl font-bold text-green-700 text-center tracking-widest w-full">
           Lista de Gastos
         </h2>
-      </div>        {/* Filtros */}
+        {/* Botón de exportar a Excel */}
+        <button
+          onClick={exportToExcel}
+          disabled={loading || filteredExpenses.length === 0}
+          className="absolute right-0 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200 flex items-center gap-2"
+          title={filteredExpenses.length === 0 ? "No hay datos para exportar" : "Exportar a Excel"}
+        >
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+          Excel
+        </button>
+      </div>{/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-4 mb-4">
         {/* Toggle Mostrar Todos */}
         <div className="flex items-center min-w-[140px]">
