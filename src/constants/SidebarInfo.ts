@@ -28,7 +28,7 @@ export const SideBarInfo = [
             {label: "Pagos recibidos", href:"#"},
             {label: "Cotizaciones", href:"#"},
             {label: "Resimiones", href:"#"},
-            {label: "Historial de Ventas", href: "/sales"},
+            {label: "Historial de Ventas", href: "/sales-history"},
         ]
     },
     {
@@ -38,7 +38,7 @@ export const SideBarInfo = [
         links: [
             {label: "Factura de compras", href: "/purchase-invoice"},
             {label: "Pagos realizados", href:"#"},
-            {label: "Historial de Compras", href: "/purchases"},
+            {label: "Historial de Compras", href: "/purchase-history"},
             {label: "Gastos", href: "/expenses"},
         ]
     },
