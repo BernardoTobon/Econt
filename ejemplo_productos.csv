@@ -1,0 +1,16 @@
+Código,Nombre,Valor Total Compra,Cantidad,Gramaje Total,Valor Unitario Venta,Stock,Bodega
+PRD001,Arroz Diana 500g,25000,50,25000,600,50,Almacén Principal
+PRD002,Aceite Girasol 1L,45000,30,30000,1800,30,Almacén Principal
+PRD003,Azúcar Blanca 1kg,18000,40,40000,500,40,Bodega Secundaria
+PRD004,Pasta Espagueti 500g,35000,70,35000,550,70,Almacén Principal
+PRD005,Leche Entera 1L,28000,35,35000,900,35,Refrigerados
+PRD006,Pan Integral 400g,24000,60,24000,450,60,Panadería
+PRD007,Huevos AA x30,42000,20,24000,2300,20,Refrigerados
+PRD008,Pollo Entero kg,85000,25,25000,3800,25,Carnicería
+PRD009,Carne Res kg,120000,15,15000,8500,15,Carnicería
+PRD010,Detergente 500ml,36000,45,22500,900,45,Limpieza
+PRD011,Jabón Antibacterial,18000,60,6000,350,60,Limpieza
+PRD012,Papel Higiénico x4,32000,40,3200,900,40,Higiene
+PRD013,Shampoo 400ml,48000,30,12000,1800,30,Higiene
+PRD014,Tomate kg,12000,80,80000,180,80,Verduras
+PRD015,Cebolla kg,8000,100,100000,95,100,Verduras
