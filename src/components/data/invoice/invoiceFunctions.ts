@@ -191,7 +191,15 @@ export const registerSales = async (
 };
 
 export const registerSaleWithDetails = async (
-  productos: { id: string; nombreDelProducto: string; cantidad: number; precioDeVenta: number; iva: number }[],
+  productos: { 
+    id: string; 
+    nombreDelProducto: string; 
+    cantidad: number; 
+    gramajePorUnidad: number;
+    gramajeTotal: number;
+    precioDeVenta: number; 
+    iva: number; 
+  }[],
   totalVenta: number
 ) => {
   try {
@@ -208,6 +216,8 @@ export const registerSaleWithDetails = async (
       await addDoc(collection(saleDocRef, "detalle"), {
         codigo: producto.id,
         nombreProducto: producto.nombreDelProducto,
+        gramajePorUnidad: producto.gramajePorUnidad,
+        gramajeTotal: producto.gramajeTotal,
         valorUnitarioVenta: producto.precioDeVenta,
         iva: producto.iva,
         cantidad: producto.cantidad,
@@ -524,29 +534,32 @@ export const aumentarProductos = async (productosComprados: any[]) => {
 // Función para registrar la compra en la colección purchases
 export const registerPurchaseWithDetails = async (productos: any[], totalCompra: number) => {
   try {
-    const purchaseData = {
-      date: new Date(),
-      products: productos.map(producto => ({
-        id: producto.id,
-        nombreDelProducto: producto.nombreDelProducto,
+    // Crear un nuevo documento en la colección `purchases`
+    const purchaseDocRef = await addDoc(collection(db, "purchases"), {
+      fecha: new Date().toISOString(),
+      total: totalCompra,
+      imagen: "", // Campo para la imagen, actualmente vacío
+    });
+
+    // Agregar los detalles de los productos comprados como una subcolección
+    for (const producto of productos) {
+      const totalProducto = producto.cantidad * producto.precioDeVenta;
+      await addDoc(collection(purchaseDocRef, "detalle"), {
+        codigo: producto.id,
+        nombreProducto: producto.nombreDelProducto,
+        valorUnitarioCompra: producto.precioDeVenta,
+        iva: producto.iva,
         cantidad: producto.cantidad,
+        total: totalProducto,
         gramajePorUnidad: producto.gramajePorUnidad,
         gramajeTotal: producto.gramajeTotal,
-        precioUnitario: producto.precioDeVenta,
-        iva: producto.iva,
-        total: producto.total,
-        bodega: producto.bodega
-      })),
-      totalAmount: totalCompra,
-      timestamp: new Date().toISOString()
-    };
+        bodega: producto.bodega,
+      });
+    }
 
-    const docRef = await addDoc(collection(db, "purchases"), purchaseData);
-    console.log("Compra registrada con ID: ", docRef.id);
-    return docRef.id;
+    console.log("Compra registrada exitosamente en la colección purchases.");
   } catch (error) {
-    console.error("Error al registrar la compra:", error);
-    throw error;
+    console.error("Error al registrar la compra en purchases:", error);
   }
 };
 
