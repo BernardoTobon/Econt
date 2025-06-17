@@ -149,10 +149,21 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
     }
     setLoading(false);
   };
-
   // Detectar si está en modal (editMode o onCloseModal presente)
   const isModal = !!onCloseModal || !!editMode;
 
+  // Función para obtener clases CSS de inputs según el contexto
+  const getInputClasses = () => {
+    return isModal 
+      ? "w-full min-w-[280px] px-6 py-2 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-sm sm:text-base"
+      : "w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg";
+  };
+
+  const getLabelClasses = () => {
+    return isModal
+      ? "block text-green-400 mb-1 text-sm sm:text-base"
+      : "block text-green-400 mb-2 text-base sm:text-lg";
+  };
   return (
     <div
       className={
@@ -162,29 +173,19 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
       }
       style={isModal ? { minHeight: 0, padding: 0, position: 'relative' } : { position: 'relative' }}
     >
-      {/* Botón para cerrar el modal si está en modo modal */}
-      {isModal && onCloseModal && (
-        <button
-          type="button"
-          onClick={onCloseModal}
-          className="absolute top-4 right-4 z-50 px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 via-green-400 to-green-300 text-green-950 font-bold hover:from-green-400 hover:to-green-500 transition text-sm shadow-lg border border-green-600"
-        >
-          Cerrar
-        </button>
-      )}
+      
       <form
         onSubmit={handleSubmit}
         className={
           isModal
-            ? "bg-green-950 bg-opacity-90 p-8 sm:p-12 rounded-2xl shadow-2xl w-full max-w-4xl border border-green-500 flex flex-col items-center"
+            ? "bg-green-950 bg-opacity-90 p-4 sm:p-6 rounded-2xl shadow-2xl w-full max-w-4xl border border-green-500 flex flex-col items-center"
             : "bg-green-950 bg-opacity-80 p-6 sm:p-10 rounded-xl shadow-2xl w-full max-w-4xl border border-green-500 flex flex-col items-center mt-8"
         }
         style={isModal ? { marginTop: 0, maxWidth: '56rem', width: '100%' } : {}}
-      >
-                <h2 className="text-2xl sm:text-3xl font-bold text-green-300 mb-6 text-center tracking-widest">
-            {mode === "client" ? "Registrar cliente" : "Registrar empresa"}
+      >        <h2 className={isModal ? "text-xl sm:text-2xl font-bold text-green-300 mb-4 text-center tracking-widest" : "text-2xl sm:text-3xl font-bold text-green-300 mb-6 text-center tracking-widest"}>
+            {editMode ? (mode === "client" ? "Editar cliente" : "Editar empresa") : (mode === "client" ? "Registrar cliente" : "Registrar empresa")}
         </h2>
-        <div className="flex gap-6 mb-6 w-full justify-center">
+        <div className={isModal ? "flex gap-4 mb-4 w-full justify-center" : "flex gap-6 mb-6 w-full justify-center"}>
           <label className="flex items-center gap-2 text-green-200">
             <input
               type="radio"
@@ -205,12 +206,10 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
             />
             Agregar Empresa
           </label>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+        </div>        <div className={isModal ? "grid grid-cols-1 md:grid-cols-2 gap-4 w-full" : "grid grid-cols-1 md:grid-cols-2 gap-6 w-full"}>
           {/* Columna 1 */}
-          <div className="flex flex-col gap-6">
-            <div className="mb-0 w-full">
-              <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="fullName">
+          <div className={isModal ? "flex flex-col gap-3" : "flex flex-col gap-6"}>            <div className="mb-0 w-full">
+              <label className={getLabelClasses()} htmlFor="fullName">
                 {mode === "company" ? "Razón social" : "Nombre completo"}
               </label>
               <input
@@ -219,12 +218,11 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
                 name="fullName"
                 value={form.fullName}
                 onChange={handleChange}
-                className="w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                className={getInputClasses()}
                 autoComplete="off"
               />
-            </div>
-            <div className="mb-0 w-full">
-              <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="idType">
+            </div>            <div className="mb-0 w-full">
+              <label className={getLabelClasses()} htmlFor="idType">
                 Tipo de identificación
               </label>
               <select
@@ -232,15 +230,14 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
                 name="idType"
                 value={form.idType}
                 onChange={handleChange}
-                className="w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                className={getInputClasses()}
               >
                 {idTypes.map((type) => (
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
               </select>
-            </div>
-            <div className="mb-0 w-full">
-              <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="idNumber">
+            </div>            <div className="mb-0 w-full">
+              <label className={getLabelClasses()} htmlFor="idNumber">
                 Número de identificación
               </label>
               <input
@@ -249,12 +246,11 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
                 name="idNumber"
                 value={form.idNumber}
                 onChange={handleChange}
-                className="w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                className={getInputClasses()}
                 autoComplete="off"
               />
-            </div>
-            <div className="mb-0 w-full">
-              <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="personType">
+            </div>            <div className="mb-0 w-full">
+              <label className={getLabelClasses()} htmlFor="personType">
                 Tipo de persona
               </label>
               <select
@@ -262,15 +258,14 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
                 name="personType"
                 value={form.personType}
                 onChange={handleChange}
-                className="w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                className={getInputClasses()}
               >
                 {personTypes.map((type) => (
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
               </select>
-            </div>
-            <div className="mb-0 w-full">
-              <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="taxResponsibility">
+            </div>            <div className="mb-0 w-full">
+              <label className={getLabelClasses()} htmlFor="taxResponsibility">
                 Responsabilidad tributaria
               </label>
               <select
@@ -278,18 +273,17 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
                 name="taxResponsibility"
                 value={form.taxResponsibility}
                 onChange={handleChange}
-                className="w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                className={getInputClasses()}
               >
                 {taxResponsabilities.map((type) => (
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
               </select>
             </div>
-          </div>
-          {/* Columna 2 */}
-          <div className="flex flex-col gap-6">
+          </div>          {/* Columna 2 */}
+          <div className={isModal ? "flex flex-col gap-3" : "flex flex-col gap-6"}>
             <div className="mb-0 w-full relative client-dropdown">
-              <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="city">
+              <label className={getLabelClasses()} htmlFor="city">
                 Departamento y municipio
               </label>
               <input
@@ -298,7 +292,7 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 onFocus={() => setShowDropdown(true)}
-                className="w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                className={getInputClasses()}
                 autoComplete="off"
               />
               {showDropdown && (
@@ -321,9 +315,8 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
                   ))}
                 </ul>
               )}
-            </div>
-            <div className="mb-0 w-full">
-              <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="address">
+            </div>            <div className="mb-0 w-full">
+              <label className={getLabelClasses()} htmlFor="address">
                 Dirección
               </label>
               <input
@@ -332,26 +325,24 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
                 name="address"
                 value={form.address}
                 onChange={handleChange}
-                className="w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                className={getInputClasses()}
                 autoComplete="off"
               />
-            </div>
-            <div className="mb-0 w-full">
-              <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="postalCode">
+            </div>            <div className="mb-0 w-full">
+              <label className={getLabelClasses()} htmlFor="postalCode">
                 Código postal
               </label>
               <input
                 type="text"
                 id="postalCode"
-                name="postalCode"
-                value={form.postalCode}
+                name="postalCode"                value={form.postalCode}
                 onChange={handleChange}
-                className="w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                className={getInputClasses()}
                 autoComplete="off"
               />
             </div>
             <div className="mb-0 w-full">
-              <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="email">
+              <label className={getLabelClasses()} htmlFor="email">
                 Email
               </label>
               <input
@@ -360,12 +351,12 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
                 name="email"
                 value={form.email}
                 onChange={handleChange}
-                className="w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                className={getInputClasses()}
                 autoComplete="off"
               />
             </div>
             <div className="mb-0 w-full">
-              <label className="block text-green-400 mb-2 text-base sm:text-lg" htmlFor="celular">
+              <label className={getLabelClasses()} htmlFor="celular">
                 Celular
               </label>
               <input
@@ -374,18 +365,20 @@ export default function AddClient({ onRegistered, initialData, editMode, onUpdat
                 name="celular"
                 value={form.celular}
                 onChange={handleChange}
-                className="w-full min-w-[320px] px-10 py-4 rounded-xl bg-white text-green-800 border border-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 transition text-base sm:text-lg"
+                className={getInputClasses()}
                 autoComplete="off"
               />
             </div>
           </div>
         </div>
         {error && <div className="mb-4 text-red-400 text-center text-sm w-full">{error}</div>}
-        {success && <div className="mb-4 text-green-400 text-center text-sm w-full">{success}</div>}
-        <button
+        {success && <div className="mb-4 text-green-400 text-center text-sm w-full">{success}</div>}        <button
           type="submit"
           disabled={loading}
-          className="w-96 py-2 rounded-lg bg-gradient-to-r from-green-500 via-green-400 to-green-300 text-green-950 font-bold hover:from-green-400 hover:to-green-500 transition disabled:opacity-50 text-sm sm:text-base  mt-6"
+          className={isModal 
+            ? "w-full max-w-sm py-2 rounded-lg bg-gradient-to-r from-green-500 via-green-400 to-green-300 text-green-950 font-bold hover:from-green-400 hover:to-green-500 transition disabled:opacity-50 text-sm sm:text-base mt-4"
+            : "w-96 py-2 rounded-lg bg-gradient-to-r from-green-500 via-green-400 to-green-300 text-green-950 font-bold hover:from-green-400 hover:to-green-500 transition disabled:opacity-50 text-sm sm:text-base mt-6"
+          }
         >
           {loading
             ? editMode ? "Actualizando..." : "Registrando..."

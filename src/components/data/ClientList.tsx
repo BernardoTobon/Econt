@@ -68,7 +68,7 @@ const ClientList: React.FC = () => {
   }, []);
 
   return (
-    <div className="w-full bg-white rounded-xl shadow-lg p-4 border border-green-400 overflow-x-auto pl-26">
+    <div className="w-full bg-white rounded-xl shadow-lg p-4 border border-green-400 overflow-x-auto">
       <div className="flex justify-between items-center mb-6 relative">
         <h2 className="text-2xl sm:text-3xl font-bold text-green-700 text-center tracking-widest w-full">Clientes</h2>
         <a
@@ -97,7 +97,6 @@ const ClientList: React.FC = () => {
               <th className="py-2 px-2 bg-green-100 border-2 border-green-700 min-w-[180px]">Número de identificación</th>
               <th className="py-2 px-2 bg-green-100 border-2 border-green-700 min-w-[150px]">Tipo de persona</th>
               <th className="py-2 px-2 bg-green-100 border-2 border-green-700 min-w-[200px]">Responsabilidad tributaria</th>
-              <th className="py-2 px-2 bg-green-100 border-2 border-green-700 min-w-[200px]">Email</th>
               <th className="py-2 px-2 bg-green-100 border-2 border-green-700 min-w-[100px]">Editar</th>
             </tr>
           </thead>
@@ -119,7 +118,6 @@ const ClientList: React.FC = () => {
                     <td className="py-2 px-2 border-1 border-green-500 min-w-[180px]">{client.idNumber}</td>
                     <td className="py-2 px-2 border-1 border-green-500 min-w-[150px]">{client.personType}</td>
                     <td className="py-2 px-2 border-1 border-green-500 min-w-[200px]">{client.taxResponsibility}</td>
-                    <td className="py-2 px-2 border-1 border-green-500 min-w-[200px]">{client.email}</td>
                     <td className="py-2 px-2 border-1 border-green-500 min-w-[100px]">
                       <button
                         className="text-green-700 underline hover:text-green-900"
