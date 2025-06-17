@@ -46,7 +46,7 @@ const EmployeeList: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col sm:flex-row items-start justify-start px-2 sm:px-4 py-8 gap-6 relative">
-      <div className="w-full sm:w-1/3 ml-18">
+      <div className="w-full sm:w-1/3">
         <AddEmployee onRegistered={handleEmployeeRegistered} />
       </div>
       <div className="w-full sm:w-2/3">

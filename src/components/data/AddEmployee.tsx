@@ -74,7 +74,7 @@ function AddEmployee({ onRegistered }: { onRegistered?: () => void }) {
         onSubmit={handleSubmit}
         className="bg-green-950 bg-opacity-80 p-6 sm:p-10 rounded-xl shadow-2xl w-full max-w-md border border-green-500 flex flex-col items-center mt-2"
       >
-        <h2 className="text-2xl sm:text-3xl font-bold text-green-300 mb-6 text-center tracking-widest">
+        <h2 className="text-2xl sm:text-3xl font-bold text-green-300 mb-6 text-center">
           Registrar empleado
         </h2>
         <div className="mb-4 w-full">
