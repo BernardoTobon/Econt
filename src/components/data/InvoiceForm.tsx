@@ -11,7 +11,6 @@ import { formatCurrencyToWords } from "../../utils/formatCurrency";
 import * as invoiceFunctions from "./invoice/invoiceFunctions";
 import ClientDetails from "./invoice/ClientDetails";
 import {
-  registerSales,
   registerSaleWithDetails,
   applyGlobalStyleFix,
   removeGlobalStyleFix,
@@ -23,6 +22,8 @@ import {
   fetchClients,
   fetchProducts,
   initializeProduct,
+  descontarGramajeProductos,
+  actualizarCuentaSeleccionada,
 } from "./invoice/invoiceFunctions";
 
 // Estructura de producto para la factura
@@ -30,6 +31,8 @@ interface ProductInvoice {
   id: string;
   nombreDelProducto: string;
   cantidad: number;
+  gramajePorUnidad: number; // Gramaje por unidad del producto
+  gramajeTotal: number; // Gramaje total calculado (gramajePorUnidad × cantidad)
   precioDeVenta: number;
   iva: number;
   total: number;
@@ -145,13 +148,14 @@ export const InvoiceForm: React.FC = () => {
     setSearch(client.fullName);
     setShowDropdown(false);
   };
-
   // Estado para los productos
   const [productos, setProductos] = useState<ProductInvoice[]>([
     {
       id: "",
       nombreDelProducto: "",
       cantidad: 1,
+      gramajePorUnidad: 0,
+      gramajeTotal: 0,
       precioDeVenta: 0,
       iva: 19,
       total: 0,
@@ -210,12 +214,13 @@ export const InvoiceForm: React.FC = () => {
       );
     }
   }, [searchProduct, allProducts]);
-
   // Función para inicializar una fila de producto
   const inicializarProducto = (): ProductInvoice => ({
     id: "",
     nombreDelProducto: "",
     cantidad: 1,
+    gramajePorUnidad: 0,
+    gramajeTotal: 0,
     precioDeVenta: 0,
     iva: 19,
     total: 0,
@@ -232,17 +237,19 @@ export const InvoiceForm: React.FC = () => {
 
       while (nuevosProductos.length <= targetIndex) {
         nuevosProductos.push(inicializarProducto());
-      }
-
-      const valorUnitario = product.valorUnitarioVenta;
+      } const valorUnitario = product.valorUnitarioVenta;
+      const gramajePorUnidad = product.gramajePorUnidad || 0; // Obtener gramaje por unidad del producto
       const cantidad = nuevosProductos[targetIndex].cantidad || 1;
       const valorTotal = cantidad * valorUnitario;
+      const gramajeTotal = cantidad * gramajePorUnidad; // Calcular gramaje total
 
       nuevosProductos[targetIndex] = {
         ...nuevosProductos[targetIndex],
         id: product.codigo,
         nombreDelProducto: product.nombre,
         precioDeVenta: valorUnitario,
+        gramajePorUnidad: gramajePorUnidad,
+        gramajeTotal: gramajeTotal,
         cantidad,
         total: valorTotal,
       };
@@ -288,9 +295,7 @@ export const InvoiceForm: React.FC = () => {
       if (index >= nuevosProductos.length) {
         console.error("Índice fuera de rango", { index, nuevosProductos });
         return prevProductos; // No modificar si el índice es inválido
-      }
-
-      nuevosProductos[index] = {
+      } nuevosProductos[index] = {
         ...nuevosProductos[index],
         [field]:
           field === "cantidad" || field === "precioDeVenta" || field === "iva"
@@ -298,11 +303,17 @@ export const InvoiceForm: React.FC = () => {
             : value,
       };
 
-      // Recalcular el total del producto
+      // Recalcular el total del producto y el gramaje total
       if (field === "cantidad" || field === "precioDeVenta") {
         nuevosProductos[index].total =
           nuevosProductos[index].cantidad *
-            nuevosProductos[index].precioDeVenta || 0;
+          nuevosProductos[index].precioDeVenta || 0;
+      }
+
+      // Recalcular gramaje total cuando cambie la cantidad
+      if (field === "cantidad") {
+        nuevosProductos[index].gramajeTotal =
+          nuevosProductos[index].cantidad * nuevosProductos[index].gramajePorUnidad || 0;
       }
 
       return nuevosProductos;
@@ -346,51 +357,51 @@ export const InvoiceForm: React.FC = () => {
 
   const handleBodegaChange = async (index: number, bodegaId: string) => {
     if (!bodegaId || bodegaId.trim() === "") {
-        // Restablecer la bodega y la cantidad si se selecciona "Seleccione una bodega"
-        setProductos((prevProductos) => {
-            const nuevosProductos = [...prevProductos];
-            nuevosProductos[index].bodega = ""; // Limpiar la bodega
-            return nuevosProductos;
-        });
-        setBodegaCantidad((prev) => ({ ...prev, [index]: "" })); // Limpiar la cantidad
-        return;
+      // Restablecer la bodega y la cantidad si se selecciona "Seleccione una bodega"
+      setProductos((prevProductos) => {
+        const nuevosProductos = [...prevProductos];
+        nuevosProductos[index].bodega = ""; // Limpiar la bodega
+        return nuevosProductos;
+      });
+      setBodegaCantidad((prev) => ({ ...prev, [index]: "" })); // Limpiar la cantidad
+      return;
     }
 
     try {
-        // Actualizar la bodega seleccionada
-        setProductos((prevProductos) => {
-            const nuevosProductos = [...prevProductos];
-            nuevosProductos[index].bodega = bodegaId;
-            return nuevosProductos;
-        });
+      // Actualizar la bodega seleccionada
+      setProductos((prevProductos) => {
+        const nuevosProductos = [...prevProductos];
+        nuevosProductos[index].bodega = bodegaId;
+        return nuevosProductos;
+      });
 
-        // Obtener el código del producto seleccionado
-        const codigoProducto = productos[index]?.id;
-        if (!codigoProducto) {
-            console.warn("El producto no tiene un código válido.");
-            return;
-        }
+      // Obtener el código del producto seleccionado
+      const codigoProducto = productos[index]?.id;
+      if (!codigoProducto) {
+        console.warn("El producto no tiene un código válido.");
+        return;
+      }
 
-        // Buscar en la subcolección productLoc de la bodega seleccionada
-        const productLocSnapshot = await getDocs(
-            collection(db, `cellars/${bodegaId}/productLoc`)
-        );
+      // Buscar en la subcolección productLoc de la bodega seleccionada
+      const productLocSnapshot = await getDocs(
+        collection(db, `cellars/${bodegaId}/productLoc`)
+      );
 
-        const productData = productLocSnapshot.docs.find(
-            (doc) => doc.data().codigoProducto === codigoProducto
-        );
+      const productData = productLocSnapshot.docs.find(
+        (doc) => doc.data().codigoProducto === codigoProducto
+      );
 
-        // Asegurar que el valor 0 se establezca correctamente en el estado
-        if (productData) {
-            const cantidad = productData.data().cantidad;
-            setBodegaCantidad((prev) => ({ ...prev, [index]: cantidad }));
-        } else {
-            setBodegaCantidad((prev) => ({ ...prev, [index]: 0 })); // Establecer 0 si no hay cantidad
-        }
+      // Asegurar que el valor 0 se establezca correctamente en el estado
+      if (productData) {
+        const cantidad = productData.data().cantidad;
+        setBodegaCantidad((prev) => ({ ...prev, [index]: cantidad }));
+      } else {
+        setBodegaCantidad((prev) => ({ ...prev, [index]: 0 })); // Establecer 0 si no hay cantidad
+      }
     } catch (error) {
-        console.error("Error al buscar en productLoc:", error);
+      console.error("Error al buscar en productLoc:", error);
     }
-};
+  };
 
   // Estado para totales y otros campos
   const [totalIVA, setTotalIVA] = useState(0);
@@ -498,21 +509,32 @@ export const InvoiceForm: React.FC = () => {
           cantidad: producto.cantidad,
           nombreDelProducto: producto.nombreDelProducto,
           bodega: producto.bodega || "",
-        }))
-      );
-
-      // Registrar las ventas en la colección salesInfo
-      await registerSales(productos);
+        }))      );
 
       // Registrar la venta con detalles en la colección sales
       await registerSaleWithDetails(productos, totalVenta);
 
-      // Restablecer el estado del componente
+      // Descontar gramaje de los productos en la colección products
+      await descontarGramajeProductos(
+        productos.map((producto) => ({
+          id: producto.id,
+          cantidad: producto.cantidad,
+          gramajePorUnidad: producto.gramajePorUnidad,
+          nombreDelProducto: producto.nombreDelProducto,
+        }))
+      );
+
+      // Actualizar el monto de la cuenta seleccionada
+      if (selectedAccount && totalVenta > 0) {
+        await actualizarCuentaSeleccionada(selectedAccount, totalVenta);
+      }// Restablecer el estado del componente
       setProductos([
         {
           id: "",
           nombreDelProducto: "",
           cantidad: 1,
+          gramajePorUnidad: 0,
+          gramajeTotal: 0,
           precioDeVenta: 0,
           iva: 19,
           total: 0,
@@ -557,7 +579,6 @@ export const InvoiceForm: React.FC = () => {
       link.click();
     }
   };
-
   // Función para renderizar los inputs de productos
   const handleProductoChange = (index: number, field: string, value: any) => {
     const nuevosProductos = [...productos];
@@ -568,10 +589,17 @@ export const InvoiceForm: React.FC = () => {
           ? Number(value)
           : value,
     };
-    // Calcular total del producto
+    // Calcular total del producto y gramaje total
     nuevosProductos[index].total =
       nuevosProductos[index].cantidad * nuevosProductos[index].precioDeVenta ||
       0;
+
+    // Recalcular gramaje total cuando cambie la cantidad
+    if (field === "cantidad") {
+      nuevosProductos[index].gramajeTotal =
+        nuevosProductos[index].cantidad * nuevosProductos[index].gramajePorUnidad || 0;
+    }
+
     setProductos(nuevosProductos);
   };
 
@@ -668,44 +696,7 @@ export const InvoiceForm: React.FC = () => {
                 {companyData.phone}
               </p>
             </div>
-            {/* QR Y FACTURA */}
-            <div className="text-right">
-              <div className="w-24 h-24 bg-gray-200 mb-2"></div>{" "}
-              {/* QR Placeholder */}
-              <h2 className="text-lg font-bold">
-                Factura electrónica de venta
-              </h2>
-              <p className="font-bold">No. SKYM 10429</p>
-              <p className="text-xs text-gray-600">Fecha y hora Factura</p>
-              <p>
-                <strong>Generación:</strong>{" "}
-                {new Date().toLocaleString("es-CO", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-              <p>
-                <strong>Expedición:</strong>{" "}
-                {new Date().toLocaleString("es-CO", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-              <p>
-                <strong>Vencimiento:</strong>{" "}
-                {new Date().toLocaleString("es-CO", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })}
-              </p>
-            </div>
+           
           </div>
           <h2 className="text-2xl font-bold mb-4 text-green-700">
             Factura de Venta
@@ -729,18 +720,19 @@ export const InvoiceForm: React.FC = () => {
           {/* TABLA DE PRODUCTOS */}
           <table className="w-full border-collapse border border-gray-300 text-xs mb-4">
             <thead className="bg-gray-200">
-              <tr>
-                <th className="border px-1 py-1 w-6">#</th>
-                <th className="border px-1 py-1 w-14">Código</th>
-                <th className="border px-1 py-1 w-32">Descripción</th>
-                <th className="border px-1 py-1 w-10">Cant.</th>
-                <th className="border px-1 py-1 w-32">Bodega</th>
-                <th className="border px-1 py-1 w-14">Vr. Unit.</th>
-                <th className="border px-1 py-1 w-14">IVA %</th>
-                <th className="border px-1 py-1 w-14">Vr. Total</th>
-                <th className="border px-1 py-1 w-10">Acción</th>
-              </tr>
-            </thead>
+            <tr>
+              <th className="border px-1 py-1 w-6">#</th>
+              <th className="border px-1 py-1 w-14">Código</th>
+              <th className="border px-1 py-1 w-32">Descripción</th>
+              <th className="border px-1 py-1 w-16">Gramaje (g)</th>
+              <th className="border px-1 py-1 w-10">Cant.</th>
+              <th className="border px-1 py-1 w-32">Bodega</th>
+              <th className="border px-1 py-1 w-14">Vr. Unit.</th>
+              <th className="border px-1 py-1 w-14">IVA %</th>
+              <th className="border px-1 py-1 w-14">Vr. Total</th>
+              <th className="border px-1 py-1 w-10">Acción</th>
+            </tr>
+          </thead>
             <tbody>
               {productos.map((producto, index) => (
                 <tr key={index}>
@@ -812,9 +804,14 @@ export const InvoiceForm: React.FC = () => {
                             >
                               {product.nombre}
                             </li>
-                          ))}
-                        </ul>
+                          ))}                        </ul>
                       )}
+                  </td>
+                  <td className="border px-1 py-1 text-center">
+                    <span className="text-sm font-semibold text-gray-700">
+                      {producto.gramajeTotal?.toLocaleString("es-CO") || "0"} g
+                    </span>
+                    
                   </td>
                   <td className="border px-1 py-1">
                     <input
@@ -922,12 +919,12 @@ export const InvoiceForm: React.FC = () => {
               !cliente.razonSocialONombreCompleto
                 ? "Debe seleccionar un cliente antes de guardar/exportar."
                 : productos.some((producto) => !producto.bodega || producto.bodega === "")
-                ? "Debe seleccionar una bodega para cada producto antes de guardar/exportar."
-                : !selectedAccount
-                ? "Debe seleccionar una forma de pago antes de guardar/exportar."
-                : !document.querySelector<HTMLInputElement>("#paymentMethodDropdown")?.value
-                ? "Debe seleccionar un medio de pago antes de guardar/exportar."
-                : ""
+                  ? "Debe seleccionar una bodega para cada producto antes de guardar/exportar."
+                  : !selectedAccount
+                    ? "Debe seleccionar una forma de pago antes de guardar/exportar."
+                    : !document.querySelector<HTMLInputElement>("#paymentMethodDropdown")?.value
+                      ? "Debe seleccionar un medio de pago antes de guardar/exportar."
+                      : ""
             }
           >
             Guardar y Exportar a PDF
