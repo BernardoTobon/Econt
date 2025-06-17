@@ -52,7 +52,7 @@ const SupplierList: React.FC = () => {
   };
 
   return (
-    <div className="w-full bg-white rounded-xl shadow-lg p-4 border border-green-400 overflow-x-auto pl-26">
+    <div className="w-full bg-white rounded-xl shadow-lg p-4 border border-green-400 overflow-x-auto">
       <div className="flex justify-between items-center mb-6 relative">
         <h2 className="text-2xl sm:text-3xl font-bold text-green-700 text-center tracking-widest w-full">Proveedores</h2>
         <a

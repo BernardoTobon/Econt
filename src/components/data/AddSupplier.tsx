@@ -50,8 +50,8 @@ export default function AddSupplier({ onRegistered, initialData, editMode, onUpd
   const filteredOptions = search.length === 0
     ? municipiosDepartamentos
     : municipiosDepartamentos.filter((item: { departamento: string; municipio: string }) =>
-        (`${item.departamento} - ${item.municipio}`.toLowerCase().includes(search.toLowerCase()))
-      );
+      (`${item.departamento} - ${item.municipio}`.toLowerCase().includes(search.toLowerCase()))
+    );
 
   React.useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -154,15 +154,6 @@ export default function AddSupplier({ onRegistered, initialData, editMode, onUpd
       }
       style={isModal ? { minHeight: 0, padding: 0, position: 'relative' } : { position: 'relative' }}
     >
-      {isModal && onCloseModal && (
-        <button
-          type="button"
-          onClick={onCloseModal}
-          className="absolute top-4 right-4 z-50 px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 via-green-400 to-green-300 text-green-950 font-bold hover:from-green-400 hover:to-green-500 transition text-sm shadow-lg border border-green-600"
-        >
-          Cerrar
-        </button>
-      )}
       <form
         onSubmit={handleSubmit}
         className={
