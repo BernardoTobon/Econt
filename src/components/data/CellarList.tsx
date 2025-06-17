@@ -49,8 +49,7 @@ function CellarList() {
     fetchCellars();
   };
 
-  return (
-    <div className="min-h-screen flex flex-col sm:flex-row items-start justify-start px-2 sm:px-4 py-8 gap-6 relative" style={{ zIndex: 0, paddingLeft: '6rem' }}>
+  return (    <div className="min-h-screen flex flex-col sm:flex-row items-start justify-start px-2 sm:px-4 py-8 gap-6 relative">
       <div className="w-full sm:w-1/3">
         <Cellar onRegistered={handleCellarRegistered} />
       </div>
